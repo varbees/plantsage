@@ -1,4 +1,5 @@
 from pathlib import Path
+import tomllib
 
 
 def test_dockerfile_is_cloud_run_ready():
@@ -43,3 +44,15 @@ def test_gitignore_keeps_examples_and_excludes_secrets():
     assert "!.env.example" in text
     assert ".vercel/" in text
     assert "GOOGLE_APPLICATION_CREDENTIALS" not in text
+
+
+def test_pyproject_contains_runtime_requirements_for_vercel():
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = set(pyproject["project"]["dependencies"])
+    requirements = {
+        line.strip()
+        for line in Path("requirements.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+
+    assert requirements <= dependencies
