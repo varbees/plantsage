@@ -48,6 +48,17 @@ curl -X POST http://127.0.0.1:8080/identify \
   -F "district=Tirupati"
 ```
 
+## Async research worker
+
+The default `/identify` path still runs identification, research, and reports synchronously for simple local testing. To split slow report generation into a worker:
+
+```bash
+PLANTSAGE_ASYNC_RESEARCH=1 python -m uvicorn api.main:app --reload --port 8080
+python scripts/run_research_worker.py --once
+```
+
+With async mode enabled, `/identify` returns `202` after creating an observation and queued `research_jobs` row. The worker claims queued jobs, runs Gemini grounded research, writes report artifacts, registers source documents, and marks the job complete or failed.
+
 ## Data model
 
 SQLite tables:
@@ -62,7 +73,7 @@ SQLite tables:
 - `source_documents`: normalized source records with URL/title/hash where available.
 - `plant_claims`, `vernacular_names`, `region_occurrences`, `review_events`: schema-ready tables for sourced plant knowledge, Indian local names, regional likelihood, and review history.
 
-No queue or Postgres is used yet. The synchronous pipeline is simpler and sufficient for local production testing. The schema is already shaped so a later background worker can pick up `research_jobs` without changing the API contract.
+No external queue or Postgres is used yet. The local worker claims queued `research_jobs` rows from SQLite. The schema and API are shaped so a managed worker can move to Postgres/object storage without changing the user-facing `/identify` contract.
 
 ## Research direction
 

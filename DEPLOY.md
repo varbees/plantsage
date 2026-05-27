@@ -117,6 +117,18 @@ pnpm dlx vercel env add PLANTSAGE_RESEARCH_PROVIDER preview your-branch
 
 For one-off preview deploys from `main`, pass runtime env flags with `pnpm dlx vercel -e ...`.
 
+Async mode:
+
+```bash
+pnpm dlx vercel env add PLANTSAGE_ASYNC_RESEARCH production
+```
+
+Set it to `1` only after a worker target exists. Otherwise `/identify` will enqueue jobs that no deployed process consumes. Local worker command:
+
+```bash
+python scripts/run_research_worker.py --once
+```
+
 Deploy:
 
 ```bash

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 
@@ -74,6 +74,7 @@ async def favicon_svg():
 
 @app.post("/identify")
 async def identify_and_research(
+    response: Response,
     image: UploadFile = File(...),
     latitude: float = 13.7483,
     longitude: float = 79.6986,
@@ -123,6 +124,29 @@ async def identify_and_research(
         provider=settings.research_provider,
     )
 
+    image_payload = {
+        "sha256": uploaded.sha256,
+        "path": str(uploaded.path),
+        "mime_type": uploaded.mime_type,
+        "size_bytes": uploaded.size_bytes,
+    }
+
+    if settings.async_research:
+        response.status_code = 202
+        return {
+            "status": "queued",
+            "plant_id": plant_id,
+            "report": None,
+            "reports": None,
+            "observation_id": observation_id,
+            "report_run_id": None,
+            "research_job_id": research_job_id,
+            "image": image_payload,
+            "json_url": None,
+            "markdown_url": None,
+            "pdf_url": None,
+        }
+
     try:
         await update_research_job(research_job_id, status="running")
         research = await research_plant(
@@ -158,12 +182,7 @@ async def identify_and_research(
         "observation_id": observation_id,
         "report_run_id": report_run_id,
         "research_job_id": research_job_id,
-        "image": {
-            "sha256": uploaded.sha256,
-            "path": str(uploaded.path),
-            "mime_type": uploaded.mime_type,
-            "size_bytes": uploaded.size_bytes,
-        },
+        "image": image_payload,
         "json_url": json_url,
         "markdown_url": markdown_url,
         "pdf_url": pdf_url,

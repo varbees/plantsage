@@ -552,6 +552,55 @@ class SpeciesLog:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    async def claim_next_research_job(self) -> dict[str, Any] | None:
+        return await asyncio.to_thread(self._claim_next_research_job_sync)
+
+    def _claim_next_research_job_sync(self) -> dict[str, Any] | None:
+        self._init_db_sync()
+        now = datetime.now().isoformat(timespec="seconds")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """
+                SELECT
+                    rj.*,
+                    o.family,
+                    o.telugu_name,
+                    o.district,
+                    o.latitude,
+                    o.longitude,
+                    o.confidence,
+                    o.image_path,
+                    o.image_sha256,
+                    o.image_mime_type
+                FROM research_jobs rj
+                LEFT JOIN observations o ON o.id = rj.observation_id
+                WHERE rj.status = 'queued'
+                ORDER BY rj.created_at ASC, rj.id ASC
+                LIMIT 1
+                """
+            ).fetchone()
+            if not row:
+                return None
+
+            db.execute(
+                """
+                UPDATE research_jobs
+                SET status = 'running',
+                    updated_at = ?,
+                    started_at = COALESCE(started_at, ?),
+                    error_message = NULL
+                WHERE id = ?
+                """,
+                (now, now, row["id"]),
+            )
+
+        payload = dict(row)
+        payload["status"] = "running"
+        payload["updated_at"] = now
+        payload["started_at"] = payload.get("started_at") or now
+        return payload
+
     async def get_source_documents_for_report(self, report_run_id: int) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._get_source_documents_for_report_sync, report_run_id)
 
@@ -752,6 +801,10 @@ async def get_recent_reports(limit: int = 20) -> list[dict[str, Any]]:
 
 async def get_recent_research_jobs(limit: int = 20) -> list[dict[str, Any]]:
     return await default_log.get_recent_research_jobs(limit=limit)
+
+
+async def claim_next_research_job() -> dict[str, Any] | None:
+    return await default_log.claim_next_research_job()
 
 
 async def get_dashboard_summary() -> dict[str, int]:

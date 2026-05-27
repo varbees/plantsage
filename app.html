@@ -987,6 +987,10 @@
     }
 
     function renderResult(body) {
+      if (body.status === "queued") {
+        renderQueuedResult(body);
+        return;
+      }
       state.lastResult = body;
       const plant = body.plant_id || {};
       const report = body.report || {};
@@ -1010,6 +1014,31 @@
       `;
       renderSummary(report);
       renderResearch(report);
+      el.jsonPanel.innerHTML = `<pre>${escapeHTML(JSON.stringify(body, null, 2))}</pre>`;
+    }
+
+    function renderQueuedResult(body) {
+      state.lastResult = body;
+      const plant = body.plant_id || {};
+      const image = body.image || {};
+      el.resultStatus.textContent = "Queued";
+      el.resultStatus.classList.remove("ready");
+      el.resultStatus.classList.remove("blocked");
+      el.resultCard.innerHTML = `
+        <h3>${escapeHTML(plant.scientific_name)}</h3>
+        <p><b>Family:</b> ${escapeHTML(plant.family)}<br>
+        <b>Telugu:</b> ${escapeHTML(plant.telugu_name)} ${plant.telugu_script ? `(${escapeHTML(plant.telugu_script)})` : ""}<br>
+        <b>Confidence:</b> ${escapeHTML(plant.confidence)}<br>
+        <b>Research job:</b> ${escapeHTML(body.research_job_id)} queued for worker processing<br>
+        <b>Image:</b> ${escapeHTML(image.sha256)}</p>
+      `;
+      el.summaryPanel.innerHTML = `
+        <div class="summary-list">
+          <div class="summary-item"><b>Observation</b>${escapeHTML(body.observation_id)} recorded.</div>
+          <div class="summary-item"><b>Research</b>Queued. Start the worker to generate the report artifacts.</div>
+        </div>
+      `;
+      el.researchPanel.innerHTML = `<div class="empty">Research is queued and has not produced source-backed sections yet.</div>`;
       el.jsonPanel.innerHTML = `<pre>${escapeHTML(JSON.stringify(body, null, 2))}</pre>`;
     }
 
@@ -1134,9 +1163,13 @@
         const response = await fetch("/identify", { method: "POST", body: formData });
         const body = await parseJSONResponse(response);
         clearTimers();
-        setSteps(null, ["ingest", "identify", "research", "reports"]);
+        setSteps(null, body.status === "queued" ? ["ingest", "identify"] : ["ingest", "identify", "research", "reports"]);
         renderResult(body);
-        setMessage(`Complete. Observation ${body.observation_id}, job ${body.research_job_id}, report ${body.report_run_id}.`);
+        if (body.status === "queued") {
+          setMessage(`Queued. Observation ${body.observation_id}, job ${body.research_job_id}.`);
+        } else {
+          setMessage(`Complete. Observation ${body.observation_id}, job ${body.research_job_id}, report ${body.report_run_id}.`);
+        }
         await loadDashboard();
       } catch (error) {
         clearTimers();

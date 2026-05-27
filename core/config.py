@@ -43,6 +43,7 @@ class Settings:
     db_path: Path
     mock_identify: bool
     mock_research: bool
+    async_research: bool
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -63,6 +64,7 @@ class Settings:
             db_path=Path(os.getenv("PLANTSAGE_DB_PATH", str(runtime_dir / "plantsage_observations.db"))),
             mock_identify=_truthy(os.getenv("PLANTSAGE_MOCK_IDENTIFY")),
             mock_research=_truthy(os.getenv("PLANTSAGE_MOCK_RESEARCH")),
+            async_research=_truthy(os.getenv("PLANTSAGE_ASYNC_RESEARCH")),
         )
 
     @staticmethod
@@ -123,6 +125,7 @@ class Settings:
                 "db_path": str(self.db_path),
                 "mock_identify": self.mock_identify,
                 "mock_research": self.mock_research,
+                "async_research": self.async_research,
                 "gemini_api_key": bool(self.gemini_api_key),
                 "anthropic_api_key": bool(self.anthropic_api_key),
             }
