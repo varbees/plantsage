@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node / Vercel CLI
+node_modules/
+.pnpm-store/
+.vercel/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Secrets and local environment
+.env*
+!.env.example
+credentials.json
+*credentials*.json
+google-credentials.json
+service-account*.json
+
+# Runtime data
+*.db
+*.sqlite
+*.sqlite3
+plantsage_observations.db
+generated_reports/
+data/uploads/
+deployment-url.txt
+
+# Local seed drop kept out of the prototype repo
+files(1)/
+
+# Playwright and test artifacts
+playwright-report/
+test-results/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

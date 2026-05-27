@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlantSage Field Console</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --paper: #fbfaf1;
+      --surface: #ffffff;
+      --ink: #172018;
+      --muted: #637068;
+      --faint: #eef2e8;
+      --line: #cad7c9;
+      --leaf: #256f4b;
+      --leaf-2: #3f8b5d;
+      --sky: #d7edf2;
+      --marigold: #cb7f20;
+      --clay: #8f5740;
+      --danger: #a33a2f;
+      --shadow: 0 18px 46px rgba(30, 51, 36, 0.12);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(120deg, rgba(215, 237, 242, 0.88), rgba(251, 250, 241, 0.96) 44%, rgba(238, 242, 232, 0.98)),
+        repeating-linear-gradient(90deg, rgba(37, 111, 75, 0.055) 0, rgba(37, 111, 75, 0.055) 1px, transparent 1px, transparent 38px);
+      font-family: var(--serif);
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      width: min(1440px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 20px 0 28px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 14px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(34px, 5.2vw, 62px);
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 8px 0 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.35;
+    }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav a,
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 9px 12px;
+      border: 1px solid var(--leaf);
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--leaf);
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .button.primary {
+      width: 100%;
+      min-height: 46px;
+      background: var(--leaf);
+      color: white;
+      font-weight: 700;
+    }
+
+    .button:disabled {
+      cursor: not-allowed;
+      opacity: 0.62;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.86fr) minmax(320px, 1fr) minmax(360px, 1.16fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid rgba(37, 111, 75, 0.18);
+      background: rgba(251, 250, 241, 0.9);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      color: var(--leaf);
+      font-size: 25px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--muted);
+      font: 12px var(--mono);
+      text-transform: uppercase;
+    }
+
+    .status-pill.ready {
+      border-color: rgba(37, 111, 75, 0.4);
+      color: var(--leaf);
+      background: #edf7ee;
+    }
+
+    .status-pill.blocked {
+      border-color: rgba(163, 58, 47, 0.35);
+      color: var(--danger);
+      background: #fff0ed;
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--ink);
+      padding: 9px 10px;
+      font-size: 15px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .dropzone {
+      position: relative;
+      display: grid;
+      gap: 10px;
+      min-height: 244px;
+      border: 1px dashed rgba(37, 111, 75, 0.48);
+      background:
+        linear-gradient(135deg, rgba(215, 237, 242, 0.58), rgba(255, 255, 255, 0.84)),
+        var(--surface);
+      padding: 12px;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .dropzone.active {
+      border-color: var(--marigold);
+      background: #fff8e8;
+    }
+
+    .dropzone input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .preview-frame {
+      display: grid;
+      place-items: center;
+      min-height: 174px;
+      border: 1px solid rgba(99, 112, 104, 0.18);
+      background: rgba(255, 255, 255, 0.64);
+      overflow: hidden;
+    }
+
+    .preview-frame img {
+      width: 100%;
+      height: 210px;
+      object-fit: cover;
+      display: none;
+    }
+
+    .preview-placeholder {
+      width: 82px;
+      height: 82px;
+      border: 2px solid var(--leaf);
+      border-radius: 50%;
+      position: relative;
+    }
+
+    .preview-placeholder::before,
+    .preview-placeholder::after {
+      content: "";
+      position: absolute;
+      background: var(--leaf);
+      transform-origin: bottom center;
+    }
+
+    .preview-placeholder::before {
+      width: 12px;
+      height: 48px;
+      left: 35px;
+      top: 17px;
+      border-radius: 10px;
+    }
+
+    .preview-placeholder::after {
+      width: 34px;
+      height: 20px;
+      left: 40px;
+      top: 24px;
+      border-radius: 100% 0 100% 0;
+      transform: rotate(-22deg);
+    }
+
+    .file-meta {
+      display: grid;
+      gap: 2px;
+      color: var(--muted);
+      font-size: 13px;
+      min-width: 0;
+    }
+
+    .file-meta strong {
+      color: var(--ink);
+      overflow-wrap: anywhere;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .step {
+      min-height: 72px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: 10px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .step b {
+      display: block;
+      font-size: 13px;
+    }
+
+    .step span {
+      color: var(--muted);
+      font: 11px var(--mono);
+      text-transform: uppercase;
+    }
+
+    .step.active {
+      border-color: var(--marigold);
+      background: #fff7e6;
+    }
+
+    .step.done {
+      border-color: rgba(37, 111, 75, 0.42);
+      background: #edf7ee;
+    }
+
+    .step.error {
+      border-color: rgba(163, 58, 47, 0.38);
+      background: #fff0ed;
+    }
+
+    .readiness {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .kv dt {
+      color: var(--muted);
+    }
+
+    .kv dd {
+      margin: 0;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: 10px;
+      min-height: 76px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 26px;
+      line-height: 1;
+      color: var(--leaf);
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .message {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      background: var(--faint);
+      padding: 10px;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .message.error {
+      background: #fff0ed;
+      border-color: rgba(163, 58, 47, 0.35);
+      color: var(--danger);
+    }
+
+    .result-card {
+      min-height: 148px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: 14px;
+    }
+
+    .result-card h3 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.05;
+    }
+
+    .result-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 12px 0 0;
+    }
+
+    .tab-button {
+      min-height: 34px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .tab-button[aria-selected="true"] {
+      border-color: var(--leaf);
+      color: white;
+      background: var(--leaf);
+    }
+
+    .tab-panel {
+      display: none;
+      border: 1px solid var(--line);
+      border-top: 0;
+      background: var(--surface);
+      padding: 14px;
+      min-height: 280px;
+      max-height: 560px;
+      overflow: auto;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .summary-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .summary-item {
+      border-left: 3px solid var(--leaf);
+      background: var(--faint);
+      padding: 9px 10px;
+    }
+
+    .summary-item b {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 12px/1.45 var(--mono);
+      color: #edf6e8;
+      background: #122019;
+      padding: 12px;
+      min-height: 240px;
+    }
+
+    .atlas {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.72fr) minmax(320px, 1fr) minmax(320px, 1fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .species-list,
+    .report-list,
+    .observation-list {
+      display: grid;
+      gap: 8px;
+      max-height: 470px;
+      overflow: auto;
+    }
+
+    .row-card {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      padding: 10px;
+    }
+
+    .row-card b {
+      display: block;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .row-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .empty {
+      padding: 16px;
+      border: 1px dashed var(--line);
+      background: rgba(255, 255, 255, 0.64);
+      color: var(--muted);
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 1180px) {
+      .workspace,
+      .atlas {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .shell {
+        width: min(100vw - 18px, 1440px);
+        padding-top: 12px;
+      }
+
+      .topbar,
+      .field-row,
+      .stats,
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+
+      .brand h1 {
+        font-size: 36px;
+      }
+
+      .kv {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <h1>PlantSage Field Console</h1>
+      <p>Rayalaseema flora identification, research, reports, and species memory.</p>
+    </div>
+    <nav class="nav" aria-label="Primary">
+      <a href="/architecture">Architecture</a>
+      <a href="/docs">API Docs</a>
+      <a href="/ready">Readiness</a>
+    </nav>
+  </header>
+
+  <div class="workspace">
+    <section class="panel" aria-labelledby="intake-title">
+      <div class="panel-head">
+        <h2 id="intake-title">Specimen</h2>
+        <span class="status-pill" id="file-status">No file</span>
+      </div>
+
+      <form id="identify-form">
+        <div class="dropzone" id="dropzone">
+          <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" required>
+          <div class="preview-frame">
+            <img id="image-preview" alt="Selected plant preview">
+            <div class="preview-placeholder" id="preview-placeholder" aria-hidden="true"></div>
+          </div>
+          <div class="file-meta">
+            <strong id="file-name">Specimen image</strong>
+            <span id="file-detail">JPG, PNG, WEBP, HEIC</span>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div>
+            <label for="latitude">Latitude</label>
+            <input id="latitude" name="latitude" value="13.7483" inputmode="decimal">
+          </div>
+          <div>
+            <label for="longitude">Longitude</label>
+            <input id="longitude" name="longitude" value="79.6986" inputmode="decimal">
+          </div>
+        </div>
+
+        <label for="district">District</label>
+        <input id="district" name="district" value="Tirupati">
+
+        <div style="height: 14px"></div>
+        <button class="button primary" id="run-button" type="submit">Run Pipeline</button>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="backend-title">
+      <div class="panel-head">
+        <h2 id="backend-title">Backend</h2>
+        <span class="status-pill" id="mode-pill">Checking</span>
+      </div>
+
+      <div class="readiness" id="readiness-card">
+        <dl class="kv">
+          <dt>Status</dt><dd id="ready-state">Unknown</dd>
+          <dt>Mode</dt><dd id="ready-mode">Unknown</dd>
+          <dt>Missing</dt><dd id="ready-missing">Unknown</dd>
+          <dt>Models</dt><dd id="ready-models">Unknown</dd>
+        </dl>
+      </div>
+
+      <div class="timeline" id="pipeline-timeline" aria-label="Pipeline">
+        <div class="step" data-step="ingest"><b>Ingest</b><span>idle</span></div>
+        <div class="step" data-step="identify"><b>Identify</b><span>idle</span></div>
+        <div class="step" data-step="research"><b>Research</b><span>idle</span></div>
+        <div class="step" data-step="reports"><b>Reports</b><span>idle</span></div>
+      </div>
+
+      <div class="message" id="status-message">Ready.</div>
+
+      <div class="stats" aria-label="Atlas totals">
+        <div class="metric"><strong id="metric-observations">0</strong><span>Observations</span></div>
+        <div class="metric"><strong id="metric-species">0</strong><span>Species</span></div>
+        <div class="metric"><strong id="metric-reports">0</strong><span>Reports</span></div>
+        <div class="metric"><strong id="metric-sources">0</strong><span>Sources</span></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="result-title">
+      <div class="panel-head">
+        <h2 id="result-title">Report</h2>
+        <span class="status-pill" id="result-status">Empty</span>
+      </div>
+
+      <div class="result-card" id="result-card">
+        <h3>No report yet</h3>
+        <p>Pipeline output will appear here.</p>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Report views">
+        <button class="tab-button" id="tab-summary" role="tab" type="button" aria-selected="true" aria-controls="panel-summary" data-tab="summary">Summary</button>
+        <button class="tab-button" id="tab-research" role="tab" type="button" aria-selected="false" aria-controls="panel-research" data-tab="research">Research</button>
+        <button class="tab-button" id="tab-json" role="tab" type="button" aria-selected="false" aria-controls="panel-json" data-tab="json">JSON</button>
+      </div>
+
+      <div class="tab-panel active" id="panel-summary" role="tabpanel" aria-labelledby="tab-summary">
+        <div class="empty">No summary.</div>
+      </div>
+      <div class="tab-panel" id="panel-research" role="tabpanel" aria-labelledby="tab-research">
+        <div class="empty">No research sections.</div>
+      </div>
+      <div class="tab-panel" id="panel-json" role="tabpanel" aria-labelledby="tab-json">
+        <pre>{}</pre>
+      </div>
+    </section>
+  </div>
+
+  <div class="atlas">
+    <section class="panel" aria-labelledby="species-title">
+      <div class="panel-head">
+        <h2 id="species-title">Species</h2>
+        <span class="status-pill" id="species-count">0</span>
+      </div>
+      <div class="species-list" id="species-rail"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="observations-title">
+      <div class="panel-head">
+        <h2 id="observations-title">Observations</h2>
+        <span class="status-pill" id="observation-count">0</span>
+      </div>
+      <div class="observation-list" id="recent-observations"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="reports-title">
+      <div class="panel-head">
+        <h2 id="reports-title">Reports</h2>
+        <span class="status-pill" id="report-count">0</span>
+      </div>
+      <div class="report-list" id="report-gallery"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  window.PlantSageApp = (() => {
+    const state = {
+      selectedFile: null,
+      lastResult: null,
+      activeTab: "summary",
+      pendingTimers: [],
+    };
+
+    const el = {
+      form: document.querySelector("#identify-form"),
+      image: document.querySelector("#image"),
+      dropzone: document.querySelector("#dropzone"),
+      imagePreview: document.querySelector("#image-preview"),
+      previewPlaceholder: document.querySelector("#preview-placeholder"),
+      fileName: document.querySelector("#file-name"),
+      fileDetail: document.querySelector("#file-detail"),
+      fileStatus: document.querySelector("#file-status"),
+      runButton: document.querySelector("#run-button"),
+      modePill: document.querySelector("#mode-pill"),
+      readyState: document.querySelector("#ready-state"),
+      readyMode: document.querySelector("#ready-mode"),
+      readyMissing: document.querySelector("#ready-missing"),
+      readyModels: document.querySelector("#ready-models"),
+      readinessCard: document.querySelector("#readiness-card"),
+      statusMessage: document.querySelector("#status-message"),
+      resultStatus: document.querySelector("#result-status"),
+      resultCard: document.querySelector("#result-card"),
+      summaryPanel: document.querySelector("#panel-summary"),
+      researchPanel: document.querySelector("#panel-research"),
+      jsonPanel: document.querySelector("#panel-json"),
+      speciesRail: document.querySelector("#species-rail"),
+      recentObservations: document.querySelector("#recent-observations"),
+      reportGallery: document.querySelector("#report-gallery"),
+      metrics: {
+        observations: document.querySelector("#metric-observations"),
+        species: document.querySelector("#metric-species"),
+        reports: document.querySelector("#metric-reports"),
+        sources: document.querySelector("#metric-sources"),
+      },
+      speciesCount: document.querySelector("#species-count"),
+      observationCount: document.querySelector("#observation-count"),
+      reportCount: document.querySelector("#report-count"),
+      steps: Array.from(document.querySelectorAll(".step")),
+      tabs: Array.from(document.querySelectorAll(".tab-button")),
+      panels: Array.from(document.querySelectorAll(".tab-panel")),
+    };
+
+    function text(value, fallback = "Unknown") {
+      return value === undefined || value === null || value === "" ? fallback : String(value);
+    }
+
+    function escapeHTML(value) {
+      return text(value, "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
+
+    function basename(path) {
+      return text(path, "").split("/").filter(Boolean).pop() || "";
+    }
+
+    function artifactLinks(artifactString) {
+      if (!artifactString) return "";
+      return artifactString.split("||").map((item) => {
+        const index = item.indexOf(":");
+        const type = index >= 0 ? item.slice(0, index) : "file";
+        const path = index >= 0 ? item.slice(index + 1) : item;
+        const name = basename(path);
+        if (!name) return "";
+        return `<a class="button" href="/reports/${encodeURIComponent(name)}">${escapeHTML(type)}</a>`;
+      }).join("");
+    }
+
+    async function parseJSONResponse(response) {
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(JSON.stringify(body, null, 2));
+      }
+      return body;
+    }
+
+    function setMessage(message, isError = false) {
+      el.statusMessage.textContent = message;
+      el.statusMessage.classList.toggle("error", isError);
+    }
+
+    function clearTimers() {
+      state.pendingTimers.forEach((timer) => clearTimeout(timer));
+      state.pendingTimers = [];
+    }
+
+    function setSteps(activeStep, doneSteps = [], errorStep = null) {
+      el.steps.forEach((step) => {
+        const name = step.dataset.step;
+        const label = step.querySelector("span");
+        step.classList.toggle("done", doneSteps.includes(name));
+        step.classList.toggle("active", activeStep === name);
+        step.classList.toggle("error", errorStep === name);
+        label.textContent = errorStep === name ? "error" : doneSteps.includes(name) ? "done" : activeStep === name ? "running" : "idle";
+      });
+    }
+
+    function stagePendingProgress() {
+      clearTimers();
+      setSteps("ingest");
+      state.pendingTimers.push(setTimeout(() => setSteps("identify", ["ingest"]), 450));
+      state.pendingTimers.push(setTimeout(() => setSteps("research", ["ingest", "identify"]), 1200));
+      state.pendingTimers.push(setTimeout(() => setSteps("reports", ["ingest", "identify", "research"]), 3200));
+    }
+
+    function renderReadiness(readiness) {
+      const configured = readiness.configured || {};
+      el.modePill.textContent = text(readiness.mode, "unknown");
+      el.modePill.classList.toggle("ready", Boolean(readiness.ready));
+      el.modePill.classList.toggle("blocked", !readiness.ready);
+      el.readyState.textContent = readiness.ready ? "Ready" : "Blocked";
+      el.readyMode.textContent = text(readiness.mode);
+      el.readyMissing.textContent = readiness.missing && readiness.missing.length ? readiness.missing.join(", ") : "None";
+      el.readyModels.textContent = `${text(configured.vertex_gemini_model)} / ${text(configured.anthropic_model)}`;
+    }
+
+    function renderDashboard(data) {
+      const summary = data.summary || {};
+      el.metrics.observations.textContent = text(summary.total_observations, "0");
+      el.metrics.species.textContent = text(summary.total_species, "0");
+      el.metrics.reports.textContent = text(summary.total_report_runs, "0");
+      el.metrics.sources.textContent = text(summary.total_sources, "0");
+      renderReadiness(data.readiness || {});
+      renderSpecies(data.species || []);
+      renderObservations(data.observations || []);
+      renderReports(data.reports || []);
+    }
+
+    function renderSpecies(rows) {
+      el.speciesCount.textContent = String(rows.length);
+      if (!rows.length) {
+        el.speciesRail.innerHTML = `<div class="empty">No species.</div>`;
+        return;
+      }
+      el.speciesRail.innerHTML = rows.map((row) => `
+        <div class="row-card">
+          <b>${escapeHTML(row.scientific_name)}</b>
+          <span>${escapeHTML(row.familiarity_level)} - seen ${escapeHTML(row.times_seen)} time(s)</span>
+          <span>${escapeHTML(row.latest_district || row.district || "District unknown")}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderObservations(rows) {
+      el.observationCount.textContent = String(rows.length);
+      if (!rows.length) {
+        el.recentObservations.innerHTML = `<div class="empty">No observations.</div>`;
+        return;
+      }
+      el.recentObservations.innerHTML = rows.map((row) => `
+        <div class="row-card">
+          <b>${escapeHTML(row.scientific_name)}</b>
+          <span>${escapeHTML(row.observed_at)} - ${escapeHTML(row.district || "District unknown")}</span>
+          <span>${escapeHTML(row.image_sha256 || "No image hash")}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderReports(rows) {
+      el.reportCount.textContent = String(rows.length);
+      if (!rows.length) {
+        el.reportGallery.innerHTML = `<div class="empty">No reports.</div>`;
+        return;
+      }
+      el.reportGallery.innerHTML = rows.map((row) => `
+        <div class="row-card">
+          <b>${escapeHTML(row.scientific_name)}</b>
+          <span>${escapeHTML(row.created_at)} - ${escapeHTML(row.artifact_count)} artifact(s), ${escapeHTML(row.source_count)} source(s)</span>
+          <div class="actions">${artifactLinks(row.artifacts)}</div>
+        </div>
+      `).join("");
+    }
+
+    function updateFile(file) {
+      state.selectedFile = file;
+      if (!file) return;
+      el.fileStatus.textContent = "Selected";
+      el.fileStatus.classList.add("ready");
+      el.fileName.textContent = file.name;
+      el.fileDetail.textContent = `${file.type || "image"} - ${Math.round(file.size / 1024)} KB`;
+
+      const url = URL.createObjectURL(file);
+      el.imagePreview.src = url;
+      el.imagePreview.style.display = "block";
+      el.previewPlaceholder.style.display = "none";
+    }
+
+    function renderResult(body) {
+      state.lastResult = body;
+      const plant = body.plant_id || {};
+      const report = body.report || {};
+      const image = body.image || {};
+      el.resultStatus.textContent = "Complete";
+      el.resultStatus.classList.add("ready");
+      el.resultCard.innerHTML = `
+        <h3>${escapeHTML(plant.scientific_name)}</h3>
+        <p><b>Family:</b> ${escapeHTML(plant.family)}<br>
+        <b>Telugu:</b> ${escapeHTML(plant.telugu_name)} ${plant.telugu_script ? `(${escapeHTML(plant.telugu_script)})` : ""}<br>
+        <b>Confidence:</b> ${escapeHTML(plant.confidence)}<br>
+        <b>Image:</b> ${escapeHTML(image.sha256)}</p>
+        <div class="actions">
+          ${body.pdf_url ? `<a class="button" href="${body.pdf_url}">PDF</a>` : ""}
+          ${body.markdown_url ? `<a class="button" href="${body.markdown_url}">Markdown</a>` : ""}
+          ${body.json_url ? `<a class="button" href="${body.json_url}">JSON</a>` : ""}
+        </div>
+      `;
+      renderSummary(report);
+      renderResearch(report);
+      el.jsonPanel.innerHTML = `<pre>${escapeHTML(JSON.stringify(body, null, 2))}</pre>`;
+    }
+
+    function renderSummary(report) {
+      const habitat = report.rayalaseema_habitat || {};
+      const safety = report.safety || {};
+      const methods = report.how_to_use || [];
+      const tips = report.skill_insights && report.skill_insights.identification_tips ? report.skill_insights.identification_tips : [];
+
+      el.summaryPanel.innerHTML = `
+        <div class="summary-list">
+          <div class="summary-item"><b>Habitat</b>${escapeHTML(habitat.ecoregion || habitat.microhabitat || "Unknown")}</div>
+          <div class="summary-item"><b>Safety</b>${escapeHTML(safety.toxicity || "Unknown")}</div>
+          <div class="summary-item"><b>Use Methods</b>${escapeHTML(methods.length)} documented section(s)</div>
+          <div class="summary-item"><b>Field Tips</b>${escapeHTML(tips.join(", ") || "None")}</div>
+        </div>
+      `;
+    }
+
+    function renderResearch(report) {
+      const blocks = [];
+      const how = report.how_to_use || [];
+      const folk = report.folk_medicine_AP || [];
+      const compounds = report.active_compounds || [];
+      const culture = report.cultural_significance || {};
+
+      if (how.length) {
+        blocks.push(`<div class="summary-item"><b>How to use</b>${how.map((item) => `${escapeHTML(item.purpose)}: ${escapeHTML(item.method)} ${item.safety_note ? `- ${escapeHTML(item.safety_note)}` : ""}`).join("<br>")}</div>`);
+      }
+      if (folk.length) {
+        blocks.push(`<div class="summary-item"><b>Folk medicine</b>${folk.map((item) => `${escapeHTML(item.community)}: ${escapeHTML(item.ailment)} - ${escapeHTML(item.preparation)}`).join("<br>")}</div>`);
+      }
+      if (compounds.length) {
+        blocks.push(`<div class="summary-item"><b>Compounds</b>${compounds.map((item) => `${escapeHTML(item.compound)}: ${escapeHTML(item.activity)}`).join("<br>")}</div>`);
+      }
+      if (culture.religious_use || culture.srikalahasti_connection) {
+        blocks.push(`<div class="summary-item"><b>Culture</b>${escapeHTML(culture.religious_use || "")}<br>${escapeHTML(culture.srikalahasti_connection || "")}</div>`);
+      }
+
+      el.researchPanel.innerHTML = blocks.length ? `<div class="summary-list">${blocks.join("")}</div>` : `<div class="empty">No research sections.</div>`;
+    }
+
+    function selectTab(name) {
+      state.activeTab = name;
+      el.tabs.forEach((button) => {
+        const selected = button.dataset.tab === name;
+        button.setAttribute("aria-selected", String(selected));
+      });
+      el.panels.forEach((panel) => {
+        panel.classList.toggle("active", panel.id === `panel-${name}`);
+      });
+    }
+
+    async function loadReadiness() {
+      const response = await fetch("/ready");
+      const readiness = await parseJSONResponse(response);
+      renderReadiness(readiness);
+      return readiness;
+    }
+
+    async function loadDashboard() {
+      const response = await fetch("/api/dashboard");
+      const data = await parseJSONResponse(response);
+      renderDashboard(data);
+      return data;
+    }
+
+    async function submit(event) {
+      event.preventDefault();
+      const formData = new FormData(el.form);
+      if (!formData.get("image") || !state.selectedFile) {
+        setMessage("Select a specimen image.", true);
+        return;
+      }
+
+      el.runButton.disabled = true;
+      el.resultStatus.textContent = "Running";
+      el.resultStatus.classList.remove("ready");
+      setMessage("Pipeline running.");
+      stagePendingProgress();
+
+      try {
+        const response = await fetch("/identify", { method: "POST", body: formData });
+        const body = await parseJSONResponse(response);
+        clearTimers();
+        setSteps(null, ["ingest", "identify", "research", "reports"]);
+        renderResult(body);
+        setMessage(`Complete. Observation ${body.observation_id}, report ${body.report_run_id}.`);
+        await loadDashboard();
+      } catch (error) {
+        clearTimers();
+        setSteps(null, [], "research");
+        setMessage(error.message, true);
+        el.resultStatus.textContent = "Error";
+      } finally {
+        el.runButton.disabled = false;
+      }
+    }
+
+    function bindEvents() {
+      el.form.addEventListener("submit", submit);
+      el.image.addEventListener("change", () => updateFile(el.image.files[0]));
+      el.dropzone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        el.dropzone.classList.add("active");
+      });
+      el.dropzone.addEventListener("dragleave", () => el.dropzone.classList.remove("active"));
+      el.dropzone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        el.dropzone.classList.remove("active");
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        el.image.files = transfer.files;
+        updateFile(file);
+      });
+      el.tabs.forEach((button) => {
+        button.addEventListener("click", () => selectTab(button.dataset.tab));
+      });
+    }
+
+    async function init() {
+      bindEvents();
+      setSteps(null);
+      try {
+        await loadReadiness();
+        await loadDashboard();
+        setMessage("Ready.");
+      } catch (error) {
+        setMessage(error.message, true);
+      }
+    }
+
+    return { init, loadDashboard, loadReadiness };
+  })();
+
+  window.PlantSageApp.init();
+</script>
+</body>
+</html>

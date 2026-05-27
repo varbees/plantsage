@@ -1,0 +1,10 @@
+{
+  "name": "plantsage",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "vercel:preview": "vercel",
+    "vercel:prod": "vercel --prod"
+  }
+}
