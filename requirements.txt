@@ -4,3 +4,4 @@ python-multipart>=0.0.20
 google-genai>=1.0
 markdown2>=2.5
 weasyprint>=66.0
+python-dotenv>=1.0

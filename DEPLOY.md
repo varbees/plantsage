@@ -106,6 +106,17 @@ PLANTSAGE_RESEARCH_PROVIDER=gemini
 
 Use `GEMINI_API_KEY` for Vercel. Do not add local credential JSON files to Vercel or git.
 
+Preview caveat: `main` is the production branch for this project. Vercel will not attach Preview env vars to `main`; for a non-production branch use:
+
+```bash
+pnpm dlx vercel env add GEMINI_API_KEY preview your-branch
+pnpm dlx vercel env add GEMINI_MODEL preview your-branch
+pnpm dlx vercel env add GEMINI_RESEARCH_MODEL preview your-branch
+pnpm dlx vercel env add PLANTSAGE_RESEARCH_PROVIDER preview your-branch
+```
+
+For one-off preview deploys from `main`, pass runtime env flags with `pnpm dlx vercel -e ...`.
+
 Deploy:
 
 ```bash

@@ -17,7 +17,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Set `GEMINI_API_KEY`, then:
+Set `GEMINI_API_KEY`. The app loads `.env` automatically for local runs, so the normal command is:
 
 ```bash
 python -m uvicorn api.main:app --reload --port 8080
@@ -69,6 +69,8 @@ No queue or Postgres is used yet. The synchronous pipeline is simpler and suffic
 The next product/data pass is captured in
 [`docs/research/opensage-plant-intelligence-landscape.md`](docs/research/opensage-plant-intelligence-landscape.md).
 It covers competitor UX, India-scale plant data sources, pain points, region-by-region expansion, and the serverless architecture direction for turning PlantSage into a field research assistant rather than a one-shot identifier.
+
+For agent handoff, current status, and next tasks, see [`AGENT_LOG.md`](AGENT_LOG.md).
 
 ## Container
 

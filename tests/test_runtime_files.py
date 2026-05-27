@@ -24,6 +24,20 @@ def test_dockerignore_excludes_runtime_artifacts():
     assert "data/uploads/" in text
 
 
+def test_vercelignore_excludes_local_secrets_and_runtime_artifacts():
+    vercelignore = Path(".vercelignore")
+    assert vercelignore.exists()
+
+    text = vercelignore.read_text(encoding="utf-8")
+    assert ".env" in text
+    assert ".env.*" in text
+    assert "!.env.example" in text
+    assert "credentials.json" in text
+    assert "generated_reports/" in text
+    assert "data/uploads/" in text
+    assert "tests/" in text
+
+
 def test_vercel_entrypoint_matches_fastapi_detector():
     config = Path("vercel.json")
     assert config.exists()

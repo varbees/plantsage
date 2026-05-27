@@ -7,9 +7,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - dependency is declared, guard helps partial installs.
+    load_dotenv = None
+
+
+_DOTENV_LOADED = False
+
 
 def _truthy(value: str | None) -> bool:
     return (value or "").lower() in {"1", "true", "yes", "on"}
+
+
+def _load_local_dotenv() -> None:
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED or _truthy(os.getenv("PLANTSAGE_SKIP_DOTENV")):
+        return
+    _DOTENV_LOADED = True
+    if load_dotenv is not None:
+        load_dotenv(override=False)
 
 
 @dataclass(frozen=True)
@@ -29,6 +46,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        _load_local_dotenv()
         runtime_dir = cls._runtime_dir_from_env()
         return cls(
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
