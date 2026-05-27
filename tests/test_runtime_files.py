@@ -36,6 +36,31 @@ def test_vercelignore_excludes_local_secrets_and_runtime_artifacts():
     assert "generated_reports/" in text
     assert "data/uploads/" in text
     assert "tests/" in text
+    assert "docker/postgres/" in text
+
+
+def test_local_postgres_compose_uses_unique_names_and_ports():
+    compose = Path("docker-compose.yml")
+    assert compose.exists()
+
+    text = compose.read_text(encoding="utf-8")
+    assert "pgvector/pgvector:pg16" in text
+    assert "container_name: plantsage-postgres-dev" in text
+    assert "127.0.0.1:${PLANTSAGE_POSTGRES_PORT:-55438}:5432" in text
+    assert "plantsage_postgres_data" in text
+    assert "./docker/postgres/init:/docker-entrypoint-initdb.d:ro" in text
+
+
+def test_taskfile_has_local_postgres_tasks():
+    taskfile = Path("Taskfile.yaml")
+    assert taskfile.exists()
+
+    text = taskfile.read_text(encoding="utf-8")
+    assert "db:up:" in text
+    assert "db:ready:" in text
+    assert "db:psql:" in text
+    assert "plantsage-postgres-dev" in text
+    assert "55438" in text
 
 
 def test_vercel_entrypoint_matches_fastapi_detector():

@@ -59,6 +59,24 @@ python scripts/run_research_worker.py --once
 
 With async mode enabled, `/identify` returns `202` after creating an observation and queued `research_jobs` row. The worker claims queued jobs, runs Gemini grounded research, writes report artifacts, registers source documents, and marks the job complete or failed.
 
+## Local Postgres
+
+PlantSage now has a local Postgres container for the next durable persistence phase. It intentionally binds to `127.0.0.1:55438` instead of `5432` to avoid collisions with other projects.
+
+```bash
+task db:up
+task db:ready
+task db:psql
+```
+
+Connection URL:
+
+```text
+postgresql://plantsage:plantsage_dev@127.0.0.1:55438/plantsage
+```
+
+The container is `plantsage-postgres-dev`, the volume is `plantsage_postgres_data`, and the `vector` extension is created during first initialization.
+
 ## Data model
 
 SQLite tables:

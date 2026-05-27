@@ -1,0 +1,32 @@
+# PlantSage local infrastructure.
+# App/runtime deploys remain separate; this file is only for local stateful services.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: plantsage-postgres-dev
+    environment:
+      POSTGRES_USER: ${PLANTSAGE_POSTGRES_USER:-plantsage}
+      POSTGRES_PASSWORD: ${PLANTSAGE_POSTGRES_PASSWORD:-plantsage_dev}
+      POSTGRES_DB: ${PLANTSAGE_POSTGRES_DB:-plantsage}
+    ports:
+      - "127.0.0.1:${PLANTSAGE_POSTGRES_PORT:-55438}:5432"
+    volumes:
+      - plantsage_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - plantsage_local
+
+volumes:
+  plantsage_postgres_data:
+    name: plantsage_postgres_data
+
+networks:
+  plantsage_local:
+    name: plantsage_local

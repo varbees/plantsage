@@ -10,6 +10,7 @@ Purpose: keep the current prototype state, next tasks, and handoff commands visi
 - Added the browser observation workspace with readiness, dashboard, research jobs, observations, species, and reports.
 - Added async-ready tables: `research_jobs`, `source_documents`, `determinations`, `plant_claims`, `vernacular_names`, `region_occurrences`, and `review_events`.
 - Added local async research mode: `PLANTSAGE_ASYNC_RESEARCH=1` makes `/identify` enqueue `research_jobs`; `scripts/run_research_worker.py` claims and processes queued jobs.
+- Added local Postgres container setup on `127.0.0.1:55438` with container `plantsage-postgres-dev`, volume `plantsage_postgres_data`, and `vector` extension initialization.
 - Added competitor/data-source research at `docs/research/opensage-plant-intelligence-landscape.md`.
 - Deployed the first Vercel prototype and verified live readiness with Gemini as identifier and research provider.
 
@@ -37,6 +38,9 @@ pip install -r requirements.txt
 python -m uvicorn api.main:app --reload --port 8080
 PLANTSAGE_ASYNC_RESEARCH=1 python -m uvicorn api.main:app --reload --port 8080
 python scripts/run_research_worker.py --once
+task db:up
+task db:ready
+task db:psql
 pytest
 python scripts/check_live_ready.py
 ```

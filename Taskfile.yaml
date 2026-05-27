@@ -1,0 +1,58 @@
+version: '3'
+
+vars:
+  POSTGRES_CONTAINER: plantsage-postgres-dev
+  POSTGRES_USER: '{{.PLANTSAGE_POSTGRES_USER | default "plantsage"}}'
+  POSTGRES_DB: '{{.PLANTSAGE_POSTGRES_DB | default "plantsage"}}'
+  POSTGRES_PORT: '{{.PLANTSAGE_POSTGRES_PORT | default "55438"}}'
+
+tasks:
+  default:
+    desc: List available PlantSage tasks
+    cmds:
+      - task --list
+
+  db:up:
+    desc: Start local PlantSage Postgres on 127.0.0.1:55438
+    cmds:
+      - docker compose up -d postgres --wait
+
+  db:down:
+    desc: Stop local PlantSage Postgres without deleting data
+    cmds:
+      - docker compose down
+
+  db:reset:
+    desc: Stop local PlantSage Postgres and delete its named volume
+    cmds:
+      - docker compose down -v
+
+  db:logs:
+    desc: Follow local Postgres logs
+    cmds:
+      - docker compose logs -f postgres
+
+  db:ready:
+    desc: Check local Postgres readiness
+    cmds:
+      - docker compose exec postgres pg_isready -U {{.POSTGRES_USER}} -d {{.POSTGRES_DB}}
+
+  db:psql:
+    desc: Open psql inside the local Postgres container
+    cmds:
+      - docker exec -it {{.POSTGRES_CONTAINER}} psql -U {{.POSTGRES_USER}} -d {{.POSTGRES_DB}}
+
+  db:url:
+    desc: Print the local Postgres URL for app configuration
+    cmds:
+      - echo "postgresql://{{.POSTGRES_USER}}:plantsage_dev@127.0.0.1:{{.POSTGRES_PORT}}/{{.POSTGRES_DB}}"
+
+  dev:
+    desc: Run the FastAPI app locally
+    cmds:
+      - python -m uvicorn api.main:app --reload --port 8080
+
+  worker:once:
+    desc: Process at most one queued research job
+    cmds:
+      - python scripts/run_research_worker.py --once
