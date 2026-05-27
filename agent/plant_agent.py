@@ -1,9 +1,4 @@
-"""Claude-backed plant research agent for PlantSage.
-
-The Anthropic web search tool is a server-side Messages API tool: the API
-performs the search iterations inside a single request and returns the final
-answer with search-result blocks/citations in the response content.
-"""
+"""Grounded plant research agents for PlantSage."""
 
 from __future__ import annotations
 
@@ -13,8 +8,11 @@ import os
 import re
 from typing import Any
 
+from core.config import get_settings
+
 
 DEFAULT_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+DEFAULT_GEMINI_RESEARCH_MODEL = os.getenv("GEMINI_RESEARCH_MODEL") or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 DEFAULT_WEB_SEARCH_TOOL = os.getenv("ANTHROPIC_WEB_SEARCH_TOOL", "web_search_20250305")
 DEFAULT_MAX_SEARCHES = int(os.getenv("PLANTSAGE_MAX_SEARCHES", "12"))
 
@@ -150,6 +148,9 @@ Safety rules:
 - Never recommend internal use of Calotropis latex, Datura, Nerium, Lantana, or
   Gloriosa.
 - Always include: consult a qualified Ayurvedic practitioner before internal use.
+- Use web grounding for factual claims. Prefer sources with stable botanical,
+  ethnobotanical, pharmacology, or institutional authority.
+- Put source labels or URLs into `sources`; do not cite vague source names.
 """
 
 
@@ -196,6 +197,49 @@ def extract_text_from_response(response: Any) -> str:
         if text and (block_type in (None, "text") or hasattr(block, "text")):
             chunks.append(text)
     return "\n".join(chunks).strip()
+
+
+def _get_value(obj: Any, snake_name: str, camel_name: str | None = None, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        if snake_name in obj:
+            return obj[snake_name]
+        if camel_name and camel_name in obj:
+            return obj[camel_name]
+        return default
+    if hasattr(obj, snake_name):
+        return getattr(obj, snake_name)
+    if camel_name and hasattr(obj, camel_name):
+        return getattr(obj, camel_name)
+    return default
+
+
+def extract_grounding_metadata(response: Any) -> dict[str, Any]:
+    """Extract source links and search queries from Gemini grounding metadata."""
+
+    candidates = _get_value(response, "candidates", default=[]) or []
+    if not candidates:
+        return {"sources": [], "search_queries": []}
+
+    metadata = _get_value(candidates[0], "grounding_metadata", "groundingMetadata")
+    if not metadata:
+        return {"sources": [], "search_queries": []}
+
+    queries = list(_get_value(metadata, "web_search_queries", "webSearchQueries", []) or [])
+    chunks = _get_value(metadata, "grounding_chunks", "groundingChunks", []) or []
+    sources: list[str] = []
+    seen: set[str] = set()
+    for chunk in chunks:
+        web = _get_value(chunk, "web")
+        if not web:
+            continue
+        uri = _get_value(web, "uri")
+        title = _get_value(web, "title") or "Source"
+        if not uri or uri in seen:
+            continue
+        seen.add(uri)
+        sources.append(f"{title}: {uri}")
+
+    return {"sources": sources, "search_queries": queries}
 
 
 def _research_prompt(plant_id: dict[str, Any], location_context: dict[str, Any] | None) -> str:
@@ -252,7 +296,7 @@ def _mock_research_report(plant_id: dict[str, Any], location_context: dict[str, 
         "how_to_use": [
             {
                 "purpose": "Learning placeholder",
-                "method": "Live Claude research was skipped because PLANTSAGE_MOCK_RESEARCH is enabled.",
+                "method": "Live grounded research was skipped because PLANTSAGE_MOCK_RESEARCH is enabled.",
                 "part_used": "",
                 "quantity": "",
                 "frequency": "",
@@ -281,7 +325,7 @@ async def research_plant(
     *,
     client: Any | None = None,
 ) -> dict[str, Any]:
-    """Run Claude web research and return a structured PlantSage report."""
+    """Run grounded web research and return a structured PlantSage report."""
 
     if os.getenv("PLANTSAGE_MOCK_RESEARCH"):
         return _mock_research_report(plant_id, location_context)
@@ -293,6 +337,99 @@ async def research_plant(
             "error": "Cannot research plant without a scientific_name from the identifier.",
         }
 
+    settings = get_settings()
+    if settings.research_provider == "anthropic":
+        return await _research_with_anthropic(plant_id, location_context, client=client)
+    return await _research_with_gemini(plant_id, location_context, client=client)
+
+
+async def _research_with_gemini(
+    plant_id: dict[str, Any],
+    location_context: dict[str, Any] | None = None,
+    *,
+    client: Any | None = None,
+) -> dict[str, Any]:
+    settings = get_settings()
+    scientific_name = plant_id.get("scientific_name")
+    if client is None:
+        if not settings.gemini_api_key:
+            raise RuntimeError("Set GEMINI_API_KEY before running Gemini grounded research.")
+        try:
+            from google import genai
+            from google.genai import types
+        except ImportError as exc:
+            raise RuntimeError("Install google-genai or set PLANTSAGE_MOCK_RESEARCH=1") from exc
+        client = genai.Client(api_key=settings.gemini_api_key)
+    else:
+        try:
+            from google.genai import types
+        except ImportError:
+            types = None
+
+    if "types" in locals() and types is not None:
+        grounding_tool = types.Tool(google_search=types.GoogleSearch())
+        config = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            temperature=0.15,
+            max_output_tokens=int(os.getenv("GEMINI_RESEARCH_MAX_TOKENS", "12000")),
+        )
+    else:
+        config = {"tools": [{"google_search": {}}], "temperature": 0.15, "max_output_tokens": 12000}
+
+    contents = f"{RESEARCH_SYSTEM}\n\n{_research_prompt(plant_id, location_context)}"
+
+    def generate() -> Any:
+        return client.models.generate_content(
+            model=settings.gemini_research_model or DEFAULT_GEMINI_RESEARCH_MODEL,
+            contents=contents,
+            config=config,
+        )
+
+    response = await asyncio.to_thread(generate)
+    text = getattr(response, "text", "") or ""
+    metadata = extract_grounding_metadata(response)
+    try:
+        report = extract_json_object(text)
+    except ValueError:
+        return {
+            "scientific_name": scientific_name,
+            "raw_report": text,
+            "error": "Gemini grounded research did not contain parseable PlantSage JSON.",
+            "sources": metadata["sources"],
+            "research_metadata": {
+                "provider": "gemini",
+                "model": settings.gemini_research_model,
+                "search_queries": metadata["search_queries"],
+                "source_count": len(metadata["sources"]),
+            },
+        }
+
+    report.setdefault("scientific_name", scientific_name)
+    sources = report.get("sources") or []
+    if metadata["sources"]:
+        source_set = {str(source) for source in sources}
+        for source in metadata["sources"]:
+            if source not in source_set:
+                sources.append(source)
+                source_set.add(source)
+    report["sources"] = sources
+    report["research_metadata"] = {
+        "provider": "gemini",
+        "model": settings.gemini_research_model,
+        "search_queries": metadata["search_queries"],
+        "source_count": len(sources),
+        "grounded": bool(metadata["sources"] or metadata["search_queries"]),
+    }
+    return report
+
+
+async def _research_with_anthropic(
+    plant_id: dict[str, Any],
+    location_context: dict[str, Any] | None = None,
+    *,
+    client: Any | None = None,
+) -> dict[str, Any]:
+    scientific_name = plant_id.get("scientific_name")
     if client is None:
         try:
             import anthropic
@@ -332,9 +469,14 @@ async def research_plant(
         return {
             "scientific_name": scientific_name,
             "raw_report": text,
-            "error": "Claude response did not contain parseable PlantSage JSON.",
+            "error": "Anthropic response did not contain parseable PlantSage JSON.",
         }
 
     report.setdefault("scientific_name", scientific_name)
     report.setdefault("sources", [])
+    report["research_metadata"] = {
+        "provider": "anthropic",
+        "model": DEFAULT_ANTHROPIC_MODEL,
+        "source_count": len(report.get("sources") or []),
+    }
     return report

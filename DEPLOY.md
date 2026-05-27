@@ -12,10 +12,10 @@ cp .env.example .env
 Environment:
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
 export GEMINI_API_KEY="AIza..."
 export GEMINI_MODEL="gemini-2.5-flash"
-export ANTHROPIC_MODEL="claude-sonnet-4-6"
+export GEMINI_RESEARCH_MODEL="gemini-2.5-flash"
+export PLANTSAGE_RESEARCH_PROVIDER="gemini"
 ```
 
 Check live readiness without exposing secrets:
@@ -47,11 +47,7 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanage
 gcloud iam service-accounts create plantsage-sa \
   --display-name="PlantSage Service Account"
 
-printf '%s' 'sk-ant-...' | gcloud secrets create ANTHROPIC_API_KEY --data-file=-
 printf '%s' 'AIza...' | gcloud secrets create GEMINI_API_KEY --data-file=-
-gcloud secrets add-iam-policy-binding ANTHROPIC_API_KEY \
-  --member="serviceAccount:plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
 gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
   --member="serviceAccount:plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
@@ -62,8 +58,8 @@ gcloud run deploy plantsage \
   --region asia-south1 \
   --service-account plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --set-env-vars "GEMINI_MODEL=gemini-2.5-flash,ANTHROPIC_MODEL=claude-sonnet-4-6" \
-  --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --set-env-vars "GEMINI_MODEL=gemini-2.5-flash,GEMINI_RESEARCH_MODEL=gemini-2.5-flash,PLANTSAGE_RESEARCH_PROVIDER=gemini" \
+  --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest" \
   --memory 2Gi \
   --timeout 300s
 ```
@@ -78,7 +74,7 @@ curl -X POST https://YOUR_SERVICE_URL/identify \
   -F "district=Tirupati"
 ```
 
-Expected live runtime is usually 45-90 seconds because Claude web search runs several search calls.
+Expected live runtime is usually 20-60 seconds because Gemini Search grounding may run multiple searches before returning the report.
 
 ## Deploy to Vercel with pnpm dlx
 
@@ -94,17 +90,18 @@ pnpm dlx vercel link
 Production env vars:
 
 ```bash
-pnpm dlx vercel env add ANTHROPIC_API_KEY production
 pnpm dlx vercel env add GEMINI_API_KEY production
 pnpm dlx vercel env add GEMINI_MODEL production
-pnpm dlx vercel env add ANTHROPIC_MODEL production
+pnpm dlx vercel env add GEMINI_RESEARCH_MODEL production
+pnpm dlx vercel env add PLANTSAGE_RESEARCH_PROVIDER production
 ```
 
 Recommended values:
 
 ```text
 GEMINI_MODEL=gemini-2.5-flash
-ANTHROPIC_MODEL=claude-sonnet-4-6
+GEMINI_RESEARCH_MODEL=gemini-2.5-flash
+PLANTSAGE_RESEARCH_PROVIDER=gemini
 ```
 
 Use `GEMINI_API_KEY` for Vercel. Do not add local credential JSON files to Vercel or git.
@@ -129,15 +126,15 @@ pnpm dlx vercel logs --environment production --level error --since 10m
 - Local SQLite database: `plantsage_observations.db`
 - Vercel prototype runtime: `/tmp/plantsage/...` for uploads, reports, and SQLite
 - Current orchestration: one FastAPI service. Do not add Compose/Kubernetes until a second runtime service exists.
-- Gemini Deep Research is a strong candidate for the research layer, but it is a background Interactions API flow that must be started and polled. Wire it after adding a `research_jobs` table or queue-backed worker, not inside the current synchronous `/identify` request.
+- Gemini Deep Research is a strong candidate for the research layer, but it is a background Interactions API flow that must be started and polled. The prototype now has a `research_jobs` table; the next production step is moving long research from synchronous `/identify` into a worker that claims those jobs.
 - Next likely data-engineering upgrade: background job table plus worker for long research runs, then Postgres or Cloud SQL when multi-user persistence matters.
 
 ## Credentials needed for live local E2E
 
-- `ANTHROPIC_API_KEY`
 - `GEMINI_API_KEY`
 
 Optional overrides:
 
 - `GEMINI_MODEL`
-- `ANTHROPIC_MODEL`
+- `GEMINI_RESEARCH_MODEL`
+- `PLANTSAGE_RESEARCH_PROVIDER=anthropic` plus `ANTHROPIC_API_KEY` if you want the old Claude research fallback

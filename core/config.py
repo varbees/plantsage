@@ -17,6 +17,8 @@ class Settings:
     anthropic_api_key: str | None
     gemini_api_key: str | None
     gemini_model: str
+    gemini_research_model: str
+    research_provider: str
     anthropic_model: str
     runtime_dir: Path
     reports_dir: Path
@@ -32,6 +34,10 @@ class Settings:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
             gemini_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
             gemini_model=os.getenv("GEMINI_MODEL") or os.getenv("GEMINI_IDENTIFICATION_MODEL", "gemini-2.5-flash"),
+            gemini_research_model=os.getenv("GEMINI_RESEARCH_MODEL")
+            or os.getenv("GEMINI_MODEL")
+            or "gemini-2.5-flash",
+            research_provider=os.getenv("PLANTSAGE_RESEARCH_PROVIDER", "gemini").strip().lower(),
             anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
             runtime_dir=runtime_dir,
             reports_dir=Path(os.getenv("PLANTSAGE_REPORTS_DIR", str(runtime_dir / "generated_reports"))),
@@ -56,18 +62,27 @@ class Settings:
             missing.append("identifier credential")
             missing_env.append("GEMINI_API_KEY")
 
-        if not self.mock_research and not self.anthropic_api_key:
-            missing.append("research credential")
-            missing_env.append("ANTHROPIC_API_KEY")
+        if not self.mock_research:
+            if self.research_provider == "gemini":
+                if not self.gemini_api_key:
+                    missing.append("research credential")
+                    missing_env.append("GEMINI_API_KEY")
+            elif self.research_provider == "anthropic":
+                if not self.anthropic_api_key:
+                    missing.append("research credential")
+                    missing_env.append("ANTHROPIC_API_KEY")
+            else:
+                missing.append("valid research provider")
+                missing_env.append("PLANTSAGE_RESEARCH_PROVIDER")
 
         mode = "mock" if self.mock_identify and self.mock_research else "mixed" if self.mock_identify or self.mock_research else "live"
         services = {
             "identifier": "mock" if self.mock_identify else "gemini",
-            "research": "mock" if self.mock_research else "claude",
+            "research": "mock" if self.mock_research else self.research_provider,
         }
         models = {
             "identifier": self.gemini_model,
-            "research": self.anthropic_model,
+            "research": self.gemini_research_model if self.research_provider == "gemini" else self.anthropic_model,
         }
         payload: dict[str, Any] = {
             "ready": not missing,
@@ -81,6 +96,8 @@ class Settings:
             payload["missing_env"] = missing_env
             payload["configured"] = {
                 "gemini_model": self.gemini_model,
+                "gemini_research_model": self.gemini_research_model,
+                "research_provider": self.research_provider,
                 "anthropic_model": self.anthropic_model,
                 "runtime_dir": str(self.runtime_dir),
                 "reports_dir": str(self.reports_dir),

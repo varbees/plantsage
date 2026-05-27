@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +13,7 @@ from typing import Any
 from core.config import get_settings
 
 DEFAULT_DB_PATH = get_settings().db_path
+SOURCE_URL_RE = re.compile(r"https?://[^\s)]+")
 
 
 def familiarity_for_count(times_seen: int) -> str:
@@ -21,6 +24,22 @@ def familiarity_for_count(times_seen: int) -> str:
     if times_seen >= 2:
         return "learning"
     return "new"
+
+
+def source_document_parts(source_text: str) -> dict[str, str | None]:
+    cleaned = source_text.strip()
+    match = SOURCE_URL_RE.search(cleaned)
+    url = match.group(0) if match else None
+    title = cleaned
+    if url:
+        title = f"{cleaned[:match.start()]} {cleaned[match.end():]}".strip(" -:") or url
+    return {
+        "source_text": cleaned,
+        "title": title or None,
+        "url": url,
+        "content_hash": hashlib.sha256(cleaned.encode("utf-8")).hexdigest(),
+        "source_type": "web" if url else "text",
+    }
 
 
 class SpeciesLog:
@@ -119,6 +138,126 @@ class SpeciesLog:
                 )
                 """
             )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS determinations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    observation_id INTEGER NOT NULL,
+                    scientific_name TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    confidence REAL,
+                    basis TEXT,
+                    is_current INTEGER NOT NULL DEFAULT 1,
+                    raw_payload TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(observation_id) REFERENCES observations(id)
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS research_jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    observation_id INTEGER,
+                    scientific_name TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    report_run_id INTEGER,
+                    error_message TEXT,
+                    FOREIGN KEY(observation_id) REFERENCES observations(id),
+                    FOREIGN KEY(report_run_id) REFERENCES report_runs(id)
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS source_documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_run_id INTEGER,
+                    source_index INTEGER NOT NULL DEFAULT 0,
+                    source_type TEXT NOT NULL,
+                    source_text TEXT NOT NULL,
+                    title TEXT,
+                    url TEXT,
+                    content_hash TEXT NOT NULL,
+                    fetched_at TEXT NOT NULL,
+                    license TEXT,
+                    FOREIGN KEY(report_run_id) REFERENCES report_runs(id)
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS plant_claims (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_run_id INTEGER,
+                    scientific_name TEXT NOT NULL,
+                    claim_type TEXT NOT NULL,
+                    claim_text TEXT NOT NULL,
+                    source_document_id INTEGER,
+                    confidence REAL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(report_run_id) REFERENCES report_runs(id),
+                    FOREIGN KEY(source_document_id) REFERENCES source_documents(id)
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS vernacular_names (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scientific_name TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    language TEXT,
+                    script TEXT,
+                    region TEXT,
+                    source_document_id INTEGER,
+                    ambiguity_note TEXT,
+                    FOREIGN KEY(source_document_id) REFERENCES source_documents(id)
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS region_occurrences (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scientific_name TEXT NOT NULL,
+                    region_key TEXT NOT NULL,
+                    district TEXT,
+                    state TEXT,
+                    latitude REAL,
+                    longitude REAL,
+                    evidence_source TEXT NOT NULL,
+                    confidence REAL,
+                    observed_at TEXT,
+                    source_document_id INTEGER,
+                    FOREIGN KEY(source_document_id) REFERENCES source_documents(id)
+                )
+                """
+            )
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS review_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    observation_id INTEGER,
+                    determination_id INTEGER,
+                    reviewer TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    note TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(observation_id) REFERENCES observations(id),
+                    FOREIGN KEY(determination_id) REFERENCES determinations(id)
+                )
+                """
+            )
+            db.execute("CREATE INDEX IF NOT EXISTS idx_determinations_observation ON determinations(observation_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_research_jobs_status ON research_jobs(status, updated_at)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_source_documents_report ON source_documents(report_run_id)")
 
     async def log_observation(
         self,
@@ -191,6 +330,15 @@ class SpeciesLog:
                 ),
             )
             observation_id = int(cursor.lastrowid)
+            db.execute(
+                """
+                INSERT INTO determinations (
+                    observation_id, scientific_name, source, confidence, basis, created_at
+                )
+                VALUES (?, ?, 'gemini_identifier', ?, 'initial visual identification', ?)
+                """,
+                (observation_id, scientific_name, confidence, now),
+            )
 
             existing = db.execute(
                 "SELECT times_seen FROM species_knowledge WHERE scientific_name = ?",
@@ -219,6 +367,94 @@ class SpeciesLog:
                     (scientific_name, now, now),
                 )
             return observation_id
+
+    async def create_research_job(
+        self,
+        *,
+        observation_id: int | None,
+        scientific_name: str,
+        mode: str,
+        provider: str,
+        status: str = "queued",
+    ) -> int:
+        return await asyncio.to_thread(
+            self._create_research_job_sync,
+            observation_id,
+            scientific_name,
+            mode,
+            provider,
+            status,
+        )
+
+    def _create_research_job_sync(
+        self,
+        observation_id: int | None,
+        scientific_name: str,
+        mode: str,
+        provider: str,
+        status: str,
+    ) -> int:
+        if not scientific_name:
+            raise ValueError("scientific_name is required")
+
+        self._init_db_sync()
+        now = datetime.now().isoformat(timespec="seconds")
+        started_at = now if status == "running" else None
+        completed_at = now if status in {"complete", "failed"} else None
+        with self._connect() as db:
+            cursor = db.execute(
+                """
+                INSERT INTO research_jobs (
+                    observation_id, scientific_name, mode, provider, status,
+                    created_at, updated_at, started_at, completed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (observation_id, scientific_name, mode, provider, status, now, now, started_at, completed_at),
+            )
+            return int(cursor.lastrowid)
+
+    async def update_research_job(
+        self,
+        job_id: int,
+        *,
+        status: str,
+        report_run_id: int | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        await asyncio.to_thread(self._update_research_job_sync, job_id, status, report_run_id, error_message)
+
+    def _update_research_job_sync(
+        self,
+        job_id: int,
+        status: str,
+        report_run_id: int | None,
+        error_message: str | None,
+    ) -> None:
+        self._init_db_sync()
+        now = datetime.now().isoformat(timespec="seconds")
+        with self._connect() as db:
+            existing = db.execute("SELECT started_at FROM research_jobs WHERE id = ?", (job_id,)).fetchone()
+            if not existing:
+                raise ValueError(f"research_job {job_id} not found")
+
+            started_at = existing["started_at"]
+            if status == "running" and not started_at:
+                started_at = now
+            completed_at = now if status in {"complete", "failed"} else None
+            db.execute(
+                """
+                UPDATE research_jobs
+                SET status = ?,
+                    updated_at = ?,
+                    started_at = COALESCE(?, started_at),
+                    completed_at = COALESCE(?, completed_at),
+                    report_run_id = COALESCE(?, report_run_id),
+                    error_message = ?
+                WHERE id = ?
+                """,
+                (status, now, started_at, completed_at, report_run_id, error_message, job_id),
+            )
 
     async def register_report(
         self,
@@ -268,14 +504,70 @@ class SpeciesLog:
                     )
             for index, source in enumerate(sources):
                 if source:
+                    source_text = source.strip()
                     db.execute(
                         """
                         INSERT INTO report_sources (report_run_id, source_text, source_index)
                         VALUES (?, ?, ?)
                         """,
-                        (report_run_id, source, index),
+                        (report_run_id, source_text, index),
+                    )
+                    document = source_document_parts(source_text)
+                    db.execute(
+                        """
+                        INSERT INTO source_documents (
+                            report_run_id, source_index, source_type, source_text,
+                            title, url, content_hash, fetched_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            report_run_id,
+                            index,
+                            document["source_type"],
+                            document["source_text"],
+                            document["title"],
+                            document["url"],
+                            document["content_hash"],
+                            now,
+                        ),
                     )
             return report_run_id
+
+    async def get_recent_research_jobs(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._get_recent_research_jobs_sync, limit)
+
+    def _get_recent_research_jobs_sync(self, limit: int) -> list[dict[str, Any]]:
+        self._init_db_sync()
+        limit = max(1, min(int(limit), 100))
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT *
+                FROM research_jobs
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    async def get_source_documents_for_report(self, report_run_id: int) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(self._get_source_documents_for_report_sync, report_run_id)
+
+    def _get_source_documents_for_report_sync(self, report_run_id: int) -> list[dict[str, Any]]:
+        self._init_db_sync()
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT *
+                FROM source_documents
+                WHERE report_run_id = ?
+                ORDER BY source_index ASC, id ASC
+                """,
+                (report_run_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     async def get_species_log(self, *, district: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         return await asyncio.to_thread(self._get_species_log_sync, district, limit)
@@ -401,7 +693,10 @@ class SpeciesLog:
                     (SELECT COUNT(*) FROM observations) AS total_observations,
                     (SELECT COUNT(*) FROM species_knowledge) AS total_species,
                     (SELECT COUNT(*) FROM report_runs) AS total_report_runs,
-                    (SELECT COUNT(*) FROM report_sources) AS total_sources
+                    (SELECT COUNT(*) FROM report_sources) AS total_sources,
+                    (SELECT COUNT(*) FROM research_jobs) AS total_research_jobs,
+                    (SELECT COUNT(*) FROM source_documents) AS total_source_documents,
+                    (SELECT COUNT(*) FROM plant_claims) AS total_plant_claims
                 """
             ).fetchone()
         return dict(row)
@@ -426,6 +721,14 @@ async def register_report(**kwargs: Any) -> int:
     return await default_log.register_report(**kwargs)
 
 
+async def create_research_job(**kwargs: Any) -> int:
+    return await default_log.create_research_job(**kwargs)
+
+
+async def update_research_job(job_id: int, **kwargs: Any) -> None:
+    await default_log.update_research_job(job_id, **kwargs)
+
+
 async def get_observations(limit: int = 50) -> list[dict[str, Any]]:
     return await default_log.get_observations(limit=limit)
 
@@ -436,6 +739,10 @@ async def get_reports_for_species(scientific_name: str, limit: int = 20) -> list
 
 async def get_recent_reports(limit: int = 20) -> list[dict[str, Any]]:
     return await default_log.get_recent_reports(limit=limit)
+
+
+async def get_recent_research_jobs(limit: int = 20) -> list[dict[str, Any]]:
+    return await default_log.get_recent_research_jobs(limit=limit)
 
 
 async def get_dashboard_summary() -> dict[str, int]:

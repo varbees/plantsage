@@ -1,1 +1,1 @@
-"""Claude research agent for PlantSage."""
+"""PlantSage research agents."""

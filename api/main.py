@@ -14,14 +14,17 @@ from agent.plant_agent import research_plant
 from api.vertex_identifier import identify_plant
 from core.config import get_settings
 from db.species_log import (
+    create_research_job,
     get_dashboard_summary,
     get_observations,
+    get_recent_research_jobs,
     get_recent_reports,
     get_reports_for_species,
     get_species_log,
     init_db,
     log_observation,
     register_report,
+    update_research_job,
 )
 from pipeline.ingestion import persist_upload
 from reports.generator import generate_all_reports
@@ -101,15 +104,6 @@ async def identify_and_research(
             },
         )
 
-    try:
-        research = await research_plant(
-            plant_id,
-            location_context={"latitude": latitude, "longitude": longitude, "district": district},
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Claude research failed: {exc}") from exc
-
-    reports = await generate_all_reports(plant_id, research, output_dir=settings.reports_dir)
     observation_id = await log_observation(
         scientific_name=plant_id["scientific_name"],
         family=plant_id.get("family"),
@@ -122,17 +116,35 @@ async def identify_and_research(
         image_sha256=uploaded.sha256,
         mime_type=uploaded.mime_type,
     )
-    report_run_id = await register_report(
+    research_job_id = await create_research_job(
         observation_id=observation_id,
-        scientific_name=research.get("scientific_name") or plant_id["scientific_name"],
-        slug=reports["slug"],
-        artifacts={
-            "json": reports.get("json_path"),
-            "markdown": reports.get("markdown_path"),
-            "pdf": reports.get("pdf_path"),
-        },
-        sources=research.get("sources") or [],
+        scientific_name=plant_id["scientific_name"],
+        mode="deep_report",
+        provider=settings.research_provider,
     )
+
+    try:
+        await update_research_job(research_job_id, status="running")
+        research = await research_plant(
+            plant_id,
+            location_context={"latitude": latitude, "longitude": longitude, "district": district},
+        )
+        reports = await generate_all_reports(plant_id, research, output_dir=settings.reports_dir)
+        report_run_id = await register_report(
+            observation_id=observation_id,
+            scientific_name=research.get("scientific_name") or plant_id["scientific_name"],
+            slug=reports["slug"],
+            artifacts={
+                "json": reports.get("json_path"),
+                "markdown": reports.get("markdown_path"),
+                "pdf": reports.get("pdf_path"),
+            },
+            sources=research.get("sources") or [],
+        )
+        await update_research_job(research_job_id, status="complete", report_run_id=report_run_id)
+    except Exception as exc:
+        await update_research_job(research_job_id, status="failed", error_message=str(exc))
+        raise HTTPException(status_code=502, detail=f"PlantSage research failed: {exc}") from exc
 
     markdown_url = f"/reports/{reports['markdown_filename']}"
     json_url = f"/reports/{reports['json_filename']}"
@@ -145,6 +157,7 @@ async def identify_and_research(
         "reports": reports,
         "observation_id": observation_id,
         "report_run_id": report_run_id,
+        "research_job_id": research_job_id,
         "image": {
             "sha256": uploaded.sha256,
             "path": str(uploaded.path),
@@ -203,6 +216,11 @@ async def observations(limit: int = 50):
     return await get_observations(limit=limit)
 
 
+@app.get("/research-jobs")
+async def research_jobs(limit: int = 20):
+    return await get_recent_research_jobs(limit=limit)
+
+
 @app.get("/species/{scientific_name}/reports")
 async def species_reports(scientific_name: str, limit: int = 20):
     return await get_reports_for_species(scientific_name, limit=limit)
@@ -216,6 +234,7 @@ async def dashboard_data():
         "species": await get_species_log(limit=20),
         "observations": await get_observations(limit=20),
         "reports": await get_recent_reports(limit=20),
+        "research_jobs": await get_recent_research_jobs(limit=20),
     }
 
 
@@ -234,7 +253,7 @@ async def health():
         "status": "ok",
         "region": "Rayalaseema / Andhra Pradesh",
         "identifier_model": "Gemini API",
-        "research_model": "Claude Messages API",
+        "research_model": settings.readiness().get("models", {}).get("research", "Gemini grounded research"),
         "reports_dir": str(settings.reports_dir),
         "uploads_dir": str(settings.uploads_dir),
     }

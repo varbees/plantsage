@@ -10,3 +10,4 @@ def test_fastapi_app_imports():
     assert "/identify" in paths
     assert "/species-log" in paths
     assert "/observations" in paths
+    assert "/research-jobs" in paths

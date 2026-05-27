@@ -5,6 +5,7 @@ def test_readiness_reports_missing_live_credentials(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("PLANTSAGE_RESEARCH_PROVIDER", raising=False)
     monkeypatch.delenv("PLANTSAGE_MOCK_IDENTIFY", raising=False)
     monkeypatch.delenv("PLANTSAGE_MOCK_RESEARCH", raising=False)
 
@@ -21,12 +22,12 @@ def test_readiness_can_include_internal_missing_env_names(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("PLANTSAGE_RESEARCH_PROVIDER", raising=False)
     monkeypatch.delenv("PLANTSAGE_MOCK_IDENTIFY", raising=False)
     monkeypatch.delenv("PLANTSAGE_MOCK_RESEARCH", raising=False)
 
     readiness = Settings.from_env().readiness(include_internal=True)
 
-    assert "ANTHROPIC_API_KEY" in readiness["missing_env"]
     assert "GEMINI_API_KEY" in readiness["missing_env"]
     assert "configured" in readiness
 
@@ -59,7 +60,8 @@ def test_vercel_defaults_use_tmp_runtime_paths(monkeypatch):
 
 def test_gemini_api_key_satisfies_identifier_readiness(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("PLANTSAGE_RESEARCH_PROVIDER", raising=False)
     monkeypatch.delenv("PLANTSAGE_MOCK_IDENTIFY", raising=False)
     monkeypatch.delenv("PLANTSAGE_MOCK_RESEARCH", raising=False)
 
@@ -67,5 +69,20 @@ def test_gemini_api_key_satisfies_identifier_readiness(monkeypatch):
 
     assert readiness["ready"] is True
     assert readiness["missing"] == []
-    assert readiness["services"] == {"identifier": "gemini", "research": "claude"}
+    assert readiness["services"] == {"identifier": "gemini", "research": "gemini"}
     assert readiness["models"]["identifier"] == "gemini-2.5-flash"
+    assert readiness["models"]["research"] == "gemini-2.5-flash"
+
+
+def test_anthropic_research_provider_requires_anthropic_key(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setenv("PLANTSAGE_RESEARCH_PROVIDER", "anthropic")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("PLANTSAGE_MOCK_IDENTIFY", raising=False)
+    monkeypatch.delenv("PLANTSAGE_MOCK_RESEARCH", raising=False)
+
+    readiness = Settings.from_env().readiness(include_internal=True)
+
+    assert readiness["ready"] is False
+    assert readiness["services"]["research"] == "anthropic"
+    assert "ANTHROPIC_API_KEY" in readiness["missing_env"]

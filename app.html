@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PlantSage Field Console</title>
+  <title>PlantSage Observation Workspace</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <style>
     :root {
@@ -518,12 +518,13 @@
 
     .atlas {
       display: grid;
-      grid-template-columns: minmax(280px, 0.72fr) minmax(320px, 1fr) minmax(320px, 1fr);
+      grid-template-columns: minmax(250px, 0.82fr) repeat(3, minmax(280px, 1fr));
       gap: 16px;
       margin-top: 16px;
     }
 
     .species-list,
+    .job-list,
     .report-list,
     .observation-list {
       display: grid;
@@ -611,8 +612,8 @@
 <main class="shell">
   <header class="topbar">
     <div class="brand">
-      <h1>PlantSage Field Console</h1>
-      <p>Rayalaseema flora identification, research, reports, and species memory.</p>
+      <h1>PlantSage Observation Workspace</h1>
+      <p>Fast field identification, grounded plant research, report artifacts, and regional species memory.</p>
     </div>
     <nav class="nav" aria-label="Primary">
       <a href="/architecture">Architecture</a>
@@ -656,13 +657,13 @@
         <input id="district" name="district" value="Tirupati">
 
         <div style="height: 14px"></div>
-        <button class="button primary" id="run-button" type="submit">Run Pipeline</button>
+      <button class="button primary" id="run-button" type="submit">Identify and Research</button>
       </form>
     </section>
 
     <section class="panel" aria-labelledby="backend-title">
       <div class="panel-head">
-        <h2 id="backend-title">Backend</h2>
+        <h2 id="backend-title">Agent Run</h2>
         <span class="status-pill" id="mode-pill">Checking</span>
       </div>
 
@@ -738,6 +739,14 @@
       <div class="observation-list" id="recent-observations"></div>
     </section>
 
+    <section class="panel" aria-labelledby="jobs-title">
+      <div class="panel-head">
+        <h2 id="jobs-title">Research Jobs</h2>
+        <span class="status-pill" id="job-count">0</span>
+      </div>
+      <div class="job-list" id="research-jobs"></div>
+    </section>
+
     <section class="panel" aria-labelledby="reports-title">
       <div class="panel-head">
         <h2 id="reports-title">Reports</h2>
@@ -782,6 +791,7 @@
       speciesRail: document.querySelector("#species-rail"),
       recentObservations: document.querySelector("#recent-observations"),
       reportGallery: document.querySelector("#report-gallery"),
+      researchJobs: document.querySelector("#research-jobs"),
       metrics: {
         observations: document.querySelector("#metric-observations"),
         species: document.querySelector("#metric-species"),
@@ -791,6 +801,7 @@
       speciesCount: document.querySelector("#species-count"),
       observationCount: document.querySelector("#observation-count"),
       reportCount: document.querySelector("#report-count"),
+      jobCount: document.querySelector("#job-count"),
       steps: Array.from(document.querySelectorAll(".step")),
       tabs: Array.from(document.querySelectorAll(".tab-button")),
       panels: Array.from(document.querySelectorAll(".tab-panel")),
@@ -896,6 +907,7 @@
       renderReadiness(data.readiness || {});
       renderSpecies(data.species || []);
       renderObservations(data.observations || []);
+      renderResearchJobs(data.research_jobs || []);
       renderReports(data.reports || []);
     }
 
@@ -925,6 +937,22 @@
           <b>${escapeHTML(row.scientific_name)}</b>
           <span>${escapeHTML(row.observed_at)} - ${escapeHTML(row.district || "District unknown")}</span>
           <span>${escapeHTML(row.image_sha256 || "No image hash")}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderResearchJobs(rows) {
+      el.jobCount.textContent = String(rows.length);
+      if (!rows.length) {
+        el.researchJobs.innerHTML = `<div class="empty">No research jobs.</div>`;
+        return;
+      }
+      el.researchJobs.innerHTML = rows.map((row) => `
+        <div class="row-card">
+          <b>${escapeHTML(row.scientific_name)}</b>
+          <span>${escapeHTML(row.status)} - ${escapeHTML(row.mode)} via ${escapeHTML(row.provider)}</span>
+          <span>${escapeHTML(row.updated_at || row.created_at || "No timestamp")}</span>
+          ${row.error_message ? `<span>${escapeHTML(row.error_message)}</span>` : ""}
         </div>
       `).join("");
     }
@@ -962,6 +990,7 @@
       state.lastResult = body;
       const plant = body.plant_id || {};
       const report = body.report || {};
+      const researchMeta = report.research_metadata || {};
       const image = body.image || {};
       el.resultStatus.textContent = "Complete";
       el.resultStatus.classList.add("ready");
@@ -971,6 +1000,7 @@
         <p><b>Family:</b> ${escapeHTML(plant.family)}<br>
         <b>Telugu:</b> ${escapeHTML(plant.telugu_name)} ${plant.telugu_script ? `(${escapeHTML(plant.telugu_script)})` : ""}<br>
         <b>Confidence:</b> ${escapeHTML(plant.confidence)}<br>
+        <b>Research:</b> ${escapeHTML(researchMeta.provider || "provider unknown")} ${researchMeta.source_count !== undefined ? `with ${escapeHTML(researchMeta.source_count)} source(s)` : ""}<br>
         <b>Image:</b> ${escapeHTML(image.sha256)}</p>
         <div class="actions">
           ${body.pdf_url ? `<a class="button" href="${body.pdf_url}">PDF</a>` : ""}
@@ -1016,12 +1046,14 @@
       const safety = report.safety || {};
       const methods = report.how_to_use || [];
       const tips = report.skill_insights && report.skill_insights.identification_tips ? report.skill_insights.identification_tips : [];
+      const metadata = report.research_metadata || {};
 
       el.summaryPanel.innerHTML = `
         <div class="summary-list">
           <div class="summary-item"><b>Habitat</b>${escapeHTML(habitat.ecoregion || habitat.microhabitat || "Unknown")}</div>
           <div class="summary-item"><b>Safety</b>${escapeHTML(safety.toxicity || "Unknown")}</div>
           <div class="summary-item"><b>Use Methods</b>${escapeHTML(methods.length)} documented section(s)</div>
+          <div class="summary-item"><b>Grounding</b>${escapeHTML(metadata.source_count ?? (report.sources || []).length)} source(s), ${escapeHTML((metadata.search_queries || []).length)} search query set(s)</div>
           <div class="summary-item"><b>Field Tips</b>${escapeHTML(tips.join(", ") || "None")}</div>
         </div>
       `;
@@ -1033,6 +1065,8 @@
       const folk = report.folk_medicine_AP || [];
       const compounds = report.active_compounds || [];
       const culture = report.cultural_significance || {};
+      const metadata = report.research_metadata || {};
+      const sources = report.sources || [];
 
       if (how.length) {
         blocks.push(`<div class="summary-item"><b>How to use</b>${how.map((item) => `${escapeHTML(item.purpose)}: ${escapeHTML(item.method)} ${item.safety_note ? `- ${escapeHTML(item.safety_note)}` : ""}`).join("<br>")}</div>`);
@@ -1045,6 +1079,12 @@
       }
       if (culture.religious_use || culture.srikalahasti_connection) {
         blocks.push(`<div class="summary-item"><b>Culture</b>${escapeHTML(culture.religious_use || "")}<br>${escapeHTML(culture.srikalahasti_connection || "")}</div>`);
+      }
+      if (metadata.search_queries && metadata.search_queries.length) {
+        blocks.push(`<div class="summary-item"><b>Search trail</b>${metadata.search_queries.map((query) => escapeHTML(query)).join("<br>")}</div>`);
+      }
+      if (sources.length) {
+        blocks.push(`<div class="summary-item"><b>Sources</b>${sources.map((source) => escapeHTML(source)).join("<br>")}</div>`);
       }
 
       el.researchPanel.innerHTML = blocks.length ? `<div class="summary-list">${blocks.join("")}</div>` : `<div class="empty">No research sections.</div>`;
@@ -1096,13 +1136,14 @@
         clearTimers();
         setSteps(null, ["ingest", "identify", "research", "reports"]);
         renderResult(body);
-        setMessage(`Complete. Observation ${body.observation_id}, report ${body.report_run_id}.`);
+        setMessage(`Complete. Observation ${body.observation_id}, job ${body.research_job_id}, report ${body.report_run_id}.`);
         await loadDashboard();
       } catch (error) {
         clearTimers();
         setSteps(null, [], error.status === 422 ? "identify" : "research");
         renderError(error);
         setMessage(error.message, true);
+        await loadDashboard().catch(() => undefined);
       } finally {
         el.runButton.disabled = false;
       }

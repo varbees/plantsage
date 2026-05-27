@@ -20,6 +20,7 @@ def test_field_console_has_complete_app_landmarks():
         'id="report-gallery"',
         'id="species-rail"',
         'id="recent-observations"',
+        'id="research-jobs"',
         "window.PlantSageApp",
         'fetch("/api/dashboard")',
     ]
