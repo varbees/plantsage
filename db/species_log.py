@@ -667,13 +667,22 @@ class SpeciesLog:
                     rr.slug,
                     rr.created_at,
                     rr.status,
-                    COUNT(DISTINCT ra.id) AS artifact_count,
-                    COUNT(DISTINCT rs.id) AS source_count,
-                    GROUP_CONCAT(ra.artifact_type || ':' || ra.path, '||') AS artifacts
+                    (
+                        SELECT COUNT(*)
+                        FROM report_artifacts ra
+                        WHERE ra.report_run_id = rr.id
+                    ) AS artifact_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM report_sources rs
+                        WHERE rs.report_run_id = rr.id
+                    ) AS source_count,
+                    (
+                        SELECT GROUP_CONCAT(ra.artifact_type || ':' || ra.path, '||')
+                        FROM report_artifacts ra
+                        WHERE ra.report_run_id = rr.id
+                    ) AS artifacts
                 FROM report_runs rr
-                LEFT JOIN report_artifacts ra ON ra.report_run_id = rr.id
-                LEFT JOIN report_sources rs ON rs.report_run_id = rr.id
-                GROUP BY rr.id
                 ORDER BY rr.created_at DESC, rr.id DESC
                 LIMIT ?
                 """,
