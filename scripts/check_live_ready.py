@@ -8,7 +8,7 @@ from core.config import Settings
 
 
 def main() -> int:
-    readiness = Settings.from_env().readiness()
+    readiness = Settings.from_env().readiness(include_internal=True)
     print(readiness)
     return 0 if readiness["ready"] else 1
 

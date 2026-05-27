@@ -3,7 +3,7 @@
 PlantSage turns a plant photo into:
 
 1. Hash-addressed upload ingestion under `data/uploads/`.
-2. Vertex AI Gemini Vision identification.
+2. Gemini API vision identification through an AI Studio API key.
 3. Claude web-search research across botany, Rayalaseema ethnomedicine, Ayurveda, phytochemistry, ecology, and culture.
 4. JSON, Markdown, and PDF reports under `generated_reports/`.
 5. SQLite observation, species familiarity, report artifact, and source-citation records.
@@ -17,7 +17,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Set `ANTHROPIC_API_KEY`, `GCP_PROJECT_ID`, and `GOOGLE_APPLICATION_CREDENTIALS`, then:
+Set `ANTHROPIC_API_KEY` and `GEMINI_API_KEY`, then:
 
 ```bash
 python -m uvicorn api.main:app --reload --port 8080
@@ -102,10 +102,8 @@ Deploy from the CLI:
 ```bash
 pnpm dlx vercel link
 pnpm dlx vercel env add ANTHROPIC_API_KEY production
-pnpm dlx vercel env add GCP_PROJECT_ID production
-pnpm dlx vercel env add GOOGLE_APPLICATION_CREDENTIALS_JSON production
-pnpm dlx vercel env add VERTEX_LOCATION production
-pnpm dlx vercel env add VERTEX_GEMINI_MODEL production
+pnpm dlx vercel env add GEMINI_API_KEY production
+pnpm dlx vercel env add GEMINI_MODEL production
 pnpm dlx vercel env add ANTHROPIC_MODEL production
 pnpm dlx vercel --prod
 ```

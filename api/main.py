@@ -89,7 +89,7 @@ async def identify_and_research(
     try:
         plant_id = await identify_plant(image_bytes, mime_type=uploaded.mime_type)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Vertex identification failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"Gemini identification failed: {exc}") from exc
 
     confidence = float(plant_id.get("confidence") or 0.0)
     if not plant_id.get("scientific_name") or confidence < 0.4:
@@ -233,7 +233,7 @@ async def health():
     return {
         "status": "ok",
         "region": "Rayalaseema / Andhra Pradesh",
-        "identifier_model": "Vertex AI Gemini",
+        "identifier_model": "Gemini API",
         "research_model": "Claude Messages API",
         "reports_dir": str(settings.reports_dir),
         "uploads_dir": str(settings.uploads_dir),

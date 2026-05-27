@@ -1,18 +1,16 @@
-"""Vertex AI Gemini Vision plant identifier."""
+"""Gemini API plant identifier."""
 
 from __future__ import annotations
 
+import asyncio
 import os
-import tempfile
-from pathlib import Path
 from typing import Any
 
 from agent.plant_agent import extract_json_object
 from core.config import get_settings
 
 
-DEFAULT_VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "us-central1")
-DEFAULT_VERTEX_MODEL = os.getenv("VERTEX_GEMINI_MODEL", "gemini-2.5-flash")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL") or os.getenv("GEMINI_IDENTIFICATION_MODEL", "gemini-2.5-flash")
 
 
 IDENTIFICATION_PROMPT = """
@@ -41,13 +39,6 @@ If identification is not possible, return:
 """
 
 
-def _project_id() -> str:
-    project_id = os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("PROJECT_ID")
-    if not project_id:
-        raise RuntimeError("Set GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT before calling Vertex AI.")
-    return project_id
-
-
 def _mock_identification() -> dict[str, Any]:
     return {
         "scientific_name": "Azadirachta indica",
@@ -64,50 +55,38 @@ def _mock_identification() -> dict[str, Any]:
     }
 
 
-def _part_from_bytes(part_cls: Any, image_cls: Any, image_bytes: bytes, mime_type: str) -> Any:
-    if hasattr(part_cls, "from_data"):
-        return part_cls.from_data(data=image_bytes, mime_type=mime_type)
-
-    suffix = ".jpg"
-    if mime_type == "image/png":
-        suffix = ".png"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
-        handle.write(image_bytes)
-        temp_path = Path(handle.name)
-    try:
-        return part_cls.from_image(image_cls.load_from_file(str(temp_path)))
-    finally:
-        temp_path.unlink(missing_ok=True)
-
-
 async def identify_plant(image_bytes: bytes, *, mime_type: str = "image/jpeg") -> dict[str, Any]:
-    """Identify a plant photo using Vertex AI Gemini Vision."""
+    """Identify a plant photo using the Gemini API."""
 
     if os.getenv("PLANTSAGE_MOCK_IDENTIFY"):
         return _mock_identification()
 
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        raise RuntimeError("Set GEMINI_API_KEY before calling the Gemini API.")
+
     try:
-        get_settings().ensure_google_credentials_file()
-        import vertexai
-        from vertexai.generative_models import GenerativeModel, Image, Part
+        from google import genai
+        from google.genai import types
     except ImportError as exc:
-        raise RuntimeError("Install google-cloud-aiplatform or set PLANTSAGE_MOCK_IDENTIFY=1") from exc
+        raise RuntimeError("Install google-genai or set PLANTSAGE_MOCK_IDENTIFY=1") from exc
 
-    vertexai.init(project=_project_id(), location=DEFAULT_VERTEX_LOCATION)
-    model = GenerativeModel(DEFAULT_VERTEX_MODEL)
-    image_part = _part_from_bytes(Part, Image, image_bytes, mime_type)
+    client = genai.Client(api_key=settings.gemini_api_key)
+    model_name = settings.gemini_model or DEFAULT_GEMINI_MODEL
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
-    async def generate() -> Any:
-        return await model.generate_content_async(
-            [image_part, IDENTIFICATION_PROMPT],
-            generation_config={
-                "temperature": 0.1,
-                "max_output_tokens": 2048,
-                "response_mime_type": "application/json",
-            },
+    def generate() -> Any:
+        return client.models.generate_content(
+            model=model_name,
+            contents=[image_part, IDENTIFICATION_PROMPT],
+            config=types.GenerateContentConfig(
+                temperature=0.1,
+                max_output_tokens=2048,
+                response_mime_type="application/json",
+            ),
         )
 
-    response = await generate()
+    response = await asyncio.to_thread(generate)
     raw = getattr(response, "text", "") or ""
     try:
         parsed = extract_json_object(raw)

@@ -824,13 +824,14 @@
 
     function renderReadiness(readiness) {
       const configured = readiness.configured || {};
+      const models = readiness.models || {};
       el.modePill.textContent = text(readiness.mode, "unknown");
       el.modePill.classList.toggle("ready", Boolean(readiness.ready));
       el.modePill.classList.toggle("blocked", !readiness.ready);
       el.readyState.textContent = readiness.ready ? "Ready" : "Blocked";
       el.readyMode.textContent = text(readiness.mode);
       el.readyMissing.textContent = readiness.missing && readiness.missing.length ? readiness.missing.join(", ") : "None";
-      el.readyModels.textContent = `${text(configured.vertex_gemini_model)} / ${text(configured.anthropic_model)}`;
+      el.readyModels.textContent = `${text(models.identifier || configured.gemini_model)} / ${text(models.research || configured.anthropic_model)}`;
     }
 
     function renderDashboard(data) {

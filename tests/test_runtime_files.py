@@ -44,6 +44,7 @@ def test_gitignore_keeps_examples_and_excludes_secrets():
     assert "!.env.example" in text
     assert ".vercel/" in text
     assert "GOOGLE_APPLICATION_CREDENTIALS" not in text
+    assert "GEMINI_API_KEY" not in text
 
 
 def test_pyproject_contains_runtime_requirements_for_vercel():

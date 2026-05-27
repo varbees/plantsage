@@ -8,7 +8,7 @@ dependencies = [
   "uvicorn[standard]>=0.35",
   "python-multipart>=0.0.20",
   "anthropic>=0.69",
-  "google-cloud-aiplatform>=1.153",
+  "google-genai>=1.0",
   "markdown2>=2.5",
   "weasyprint>=66.0",
 ]

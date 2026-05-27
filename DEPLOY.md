@@ -13,10 +13,8 @@ Environment:
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
-export GCP_PROJECT_ID="your-project-id"
-export GOOGLE_APPLICATION_CREDENTIALS="$PWD/credentials.json"
-export VERTEX_LOCATION="us-central1"
-export VERTEX_GEMINI_MODEL="gemini-2.5-flash"
+export GEMINI_API_KEY="AIza..."
+export GEMINI_MODEL="gemini-2.5-flash"
 export ANTHROPIC_MODEL="claude-sonnet-4-6"
 ```
 
@@ -33,43 +31,28 @@ Run:
 scripts/run_local_prod.sh
 ```
 
-## Google Cloud setup
+## Gemini API setup
+
+Create a Gemini API key in Google AI Studio and set it as `GEMINI_API_KEY`.
+No GCP project or service account JSON is required for the identifier path.
+
+## Deploy to Cloud Run
+
+This repo includes a Dockerfile because PDF generation benefits from system libraries for WeasyPrint. The app now uses Gemini API key auth, so the container only needs API-key secrets.
 
 ```bash
 gcloud auth login
 gcloud config set project YOUR_PROJECT_ID
-
-gcloud services enable \
-  aiplatform.googleapis.com \
-  run.googleapis.com \
-  cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com
-
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
 gcloud iam service-accounts create plantsage-sa \
   --display-name="PlantSage Service Account"
 
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-  --member="serviceAccount:plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/aiplatform.user"
-```
-
-For local development, a temporary service account key can be used:
-
-```bash
-gcloud iam service-accounts keys create credentials.json \
-  --iam-account=plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
-```
-
-For Cloud Run, prefer service-account identity and Secret Manager instead of shipping a key file.
-
-## Deploy to Cloud Run
-
-This repo includes a Dockerfile because PDF generation needs system libraries for WeasyPrint.
-
-```bash
 printf '%s' 'sk-ant-...' | gcloud secrets create ANTHROPIC_API_KEY --data-file=-
+printf '%s' 'AIza...' | gcloud secrets create GEMINI_API_KEY --data-file=-
 gcloud secrets add-iam-policy-binding ANTHROPIC_API_KEY \
+  --member="serviceAccount:plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
   --member="serviceAccount:plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 
@@ -79,8 +62,8 @@ gcloud run deploy plantsage \
   --region asia-south1 \
   --service-account plantsage-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
   --allow-unauthenticated \
-  --set-env-vars "GCP_PROJECT_ID=YOUR_PROJECT_ID,VERTEX_LOCATION=us-central1,VERTEX_GEMINI_MODEL=gemini-2.5-flash,ANTHROPIC_MODEL=claude-sonnet-4-6" \
-  --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest" \
+  --set-env-vars "GEMINI_MODEL=gemini-2.5-flash,ANTHROPIC_MODEL=claude-sonnet-4-6" \
+  --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest" \
   --memory 2Gi \
   --timeout 300s
 ```
@@ -112,22 +95,19 @@ Production env vars:
 
 ```bash
 pnpm dlx vercel env add ANTHROPIC_API_KEY production
-pnpm dlx vercel env add GCP_PROJECT_ID production
-pnpm dlx vercel env add GOOGLE_APPLICATION_CREDENTIALS_JSON production
-pnpm dlx vercel env add VERTEX_LOCATION production
-pnpm dlx vercel env add VERTEX_GEMINI_MODEL production
+pnpm dlx vercel env add GEMINI_API_KEY production
+pnpm dlx vercel env add GEMINI_MODEL production
 pnpm dlx vercel env add ANTHROPIC_MODEL production
 ```
 
 Recommended values:
 
 ```text
-VERTEX_LOCATION=us-central1
-VERTEX_GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-2.5-flash
 ANTHROPIC_MODEL=claude-sonnet-4-6
 ```
 
-Use `GOOGLE_APPLICATION_CREDENTIALS_JSON` for Vercel, not `GOOGLE_APPLICATION_CREDENTIALS`, because Vercel does not have your local credentials file. Paste the full service-account JSON as one env var.
+Use `GEMINI_API_KEY` for Vercel. Do not add local credential JSON files to Vercel or git.
 
 Deploy:
 
@@ -149,17 +129,15 @@ pnpm dlx vercel logs --environment production --level error --since 10m
 - Local SQLite database: `plantsage_observations.db`
 - Vercel prototype runtime: `/tmp/plantsage/...` for uploads, reports, and SQLite
 - Current orchestration: one FastAPI service. Do not add Compose/Kubernetes until a second runtime service exists.
-- Next likely data-engineering upgrade: background job table plus worker for long Claude research runs, then Postgres or Cloud SQL when multi-user persistence matters.
+- Gemini Deep Research is a strong candidate for the research layer, but it is a background Interactions API flow that must be started and polled. Wire it after adding a `research_jobs` table or queue-backed worker, not inside the current synchronous `/identify` request.
+- Next likely data-engineering upgrade: background job table plus worker for long research runs, then Postgres or Cloud SQL when multi-user persistence matters.
 
 ## Credentials needed for live local E2E
 
 - `ANTHROPIC_API_KEY`
-- `GCP_PROJECT_ID`
-- `GOOGLE_APPLICATION_CREDENTIALS` pointing to a temporary service account JSON file with Vertex AI user permissions
-- `GOOGLE_APPLICATION_CREDENTIALS_JSON` for Vercel deployments
+- `GEMINI_API_KEY`
 
 Optional overrides:
 
-- `VERTEX_LOCATION`
-- `VERTEX_GEMINI_MODEL`
+- `GEMINI_MODEL`
 - `ANTHROPIC_MODEL`
