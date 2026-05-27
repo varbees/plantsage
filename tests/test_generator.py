@@ -1,7 +1,8 @@
 import asyncio
+import builtins
 import json
 
-from reports.generator import generate_all_reports, generate_fallback_pdf, slugify
+from reports.generator import generate_all_reports, generate_fallback_pdf, generate_pdf, slugify
 
 
 def test_slugify_handles_botanical_names():
@@ -52,3 +53,29 @@ def test_fallback_pdf_writes_valid_pdf_header(tmp_path):
 
     assert pdf.exists()
     assert pdf.read_bytes().startswith(b"%PDF-1.4")
+
+
+def test_generate_pdf_falls_back_when_native_weasyprint_loader_fails(tmp_path, monkeypatch):
+    md_path = tmp_path / "report.md"
+    md_path.write_text("# Azadirachta indica\n\nFallback body", encoding="utf-8")
+
+    original_import = builtins.__import__
+
+    def fail_weasyprint_import(name, *args, **kwargs):
+        if name == "weasyprint":
+            raise OSError("cannot load library 'libpango-1.0-0'")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_weasyprint_import)
+
+    result = asyncio.run(
+        generate_pdf(
+            {"scientific_name": "Azadirachta indica"},
+            "azadirachta_indica_test",
+            md_path,
+            output_dir=tmp_path,
+        )
+    )
+
+    assert result["error"] == "WeasyPrint unavailable; fallback PDF generated (OSError)."
+    assert (tmp_path / "azadirachta_indica_test.pdf").read_bytes().startswith(b"%PDF-1.4")

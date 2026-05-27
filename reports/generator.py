@@ -325,10 +325,10 @@ async def generate_pdf(
     try:
         import markdown2
         from weasyprint import HTML
-    except ImportError as exc:
+    except Exception as exc:
         pdf_path = report_dir / f"{base_name}.pdf"
         generate_fallback_pdf(research.get("scientific_name") or "PlantSage report", md_path.read_text(encoding="utf-8"), pdf_path)
-        return {"path": str(pdf_path), "error": f"WeasyPrint unavailable; fallback PDF generated ({exc.name})."}
+        return {"path": str(pdf_path), "error": f"WeasyPrint unavailable; fallback PDF generated ({exc.__class__.__name__})."}
 
     md_content = md_path.read_text(encoding="utf-8")
     html_body = markdown2.markdown(md_content, extras=["tables", "fenced-code-blocks"])
