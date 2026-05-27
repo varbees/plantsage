@@ -7,21 +7,29 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <style>
     :root {
-      --paper: #fbfaf1;
-      --surface: #ffffff;
-      --ink: #172018;
-      --muted: #637068;
-      --faint: #eef2e8;
-      --line: #cad7c9;
-      --leaf: #256f4b;
-      --leaf-2: #3f8b5d;
-      --sky: #d7edf2;
-      --marigold: #cb7f20;
-      --clay: #8f5740;
-      --danger: #a33a2f;
-      --shadow: 0 18px 46px rgba(30, 51, 36, 0.12);
+      --paper: oklch(0.989 0.006 132);
+      --surface: oklch(0.998 0.003 132);
+      --surface-2: oklch(0.972 0.008 132);
+      --surface-3: oklch(0.944 0.012 132);
+      --ink: oklch(0.18 0.021 144);
+      --ink-2: oklch(0.36 0.019 144);
+      --muted: oklch(0.54 0.016 144);
+      --faint: oklch(0.957 0.023 139);
+      --line: oklch(0.88 0.018 139);
+      --line-strong: oklch(0.78 0.035 139);
+      --leaf: oklch(0.42 0.13 149);
+      --leaf-2: oklch(0.56 0.15 149);
+      --sky: oklch(0.89 0.04 220);
+      --marigold: oklch(0.70 0.14 76);
+      --clay: oklch(0.56 0.08 48);
+      --danger: oklch(0.53 0.17 29);
+      --danger-soft: oklch(0.955 0.04 29);
+      --shadow: 0 22px 48px oklch(0.26 0.05 144 / 0.10), 0 3px 10px oklch(0.26 0.05 144 / 0.05);
       --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --serif: Georgia, "Times New Roman", serif;
+      --radius: 8px;
+      --ease: cubic-bezier(0.23, 1, 0.32, 1);
     }
 
     * { box-sizing: border-box; }
@@ -31,9 +39,10 @@
       min-height: 100vh;
       color: var(--ink);
       background:
-        linear-gradient(120deg, rgba(215, 237, 242, 0.88), rgba(251, 250, 241, 0.96) 44%, rgba(238, 242, 232, 0.98)),
-        repeating-linear-gradient(90deg, rgba(37, 111, 75, 0.055) 0, rgba(37, 111, 75, 0.055) 1px, transparent 1px, transparent 38px);
-      font-family: var(--serif);
+        radial-gradient(circle at 16% 8%, oklch(0.89 0.045 220 / 0.72), transparent 34%),
+        linear-gradient(180deg, oklch(0.998 0.003 132), var(--paper) 440px),
+        var(--paper);
+      font-family: var(--sans);
     }
 
     button, input, select, textarea {
@@ -47,7 +56,7 @@
     .shell {
       width: min(1440px, calc(100vw - 28px));
       margin: 0 auto;
-      padding: 20px 0 28px;
+      padding: 24px 0 32px;
     }
 
     .topbar {
@@ -55,20 +64,22 @@
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 18px;
       align-items: end;
-      margin-bottom: 14px;
+      margin-bottom: 18px;
     }
 
     .brand h1 {
       margin: 0;
-      font-size: clamp(34px, 5.2vw, 62px);
-      line-height: 0.96;
+      font-family: var(--serif);
+      font-size: 52px;
+      line-height: 0.98;
       letter-spacing: 0;
+      color: var(--ink);
     }
 
     .brand p {
-      margin: 8px 0 0;
+      margin: 10px 0 0;
       max-width: 720px;
-      color: var(--muted);
+      color: var(--ink-2);
       font-size: 16px;
       line-height: 1.35;
     }
@@ -86,19 +97,29 @@
       align-items: center;
       justify-content: center;
       min-height: 38px;
-      padding: 9px 12px;
-      border: 1px solid var(--leaf);
-      background: rgba(255, 255, 255, 0.72);
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
       color: var(--leaf);
       text-decoration: none;
       cursor: pointer;
+      font: 700 13px var(--sans);
+      transition: border-color 160ms var(--ease), background 160ms var(--ease), color 160ms var(--ease);
+    }
+
+    .nav a:hover,
+    .button:hover {
+      border-color: color-mix(in oklch, var(--leaf) 54%, var(--line));
+      background: var(--faint);
     }
 
     .button.primary {
       width: 100%;
       min-height: 46px;
       background: var(--leaf);
-      color: white;
+      border-color: var(--leaf);
+      color: oklch(0.99 0.004 132);
       font-weight: 700;
     }
 
@@ -109,23 +130,23 @@
 
     .workspace {
       display: grid;
-      grid-template-columns: minmax(300px, 0.86fr) minmax(320px, 1fr) minmax(360px, 1.16fr);
-      gap: 14px;
+      grid-template-columns: minmax(320px, 0.82fr) minmax(360px, 0.98fr) minmax(420px, 1.2fr);
+      gap: 16px;
       align-items: start;
     }
 
     .panel {
-      border: 1px solid rgba(37, 111, 75, 0.18);
-      background: rgba(251, 250, 241, 0.9);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: oklch(0.998 0.003 132 / 0.90);
       box-shadow: var(--shadow);
-      padding: 16px;
+      padding: 18px;
     }
 
     .panel h2 {
       margin: 0 0 12px;
       color: var(--leaf);
-      font-size: 25px;
-      line-height: 1.05;
+      font: 760 20px/1.1 var(--sans);
       letter-spacing: 0;
     }
 
@@ -147,9 +168,10 @@
       min-height: 28px;
       padding: 5px 9px;
       border: 1px solid var(--line);
+      border-radius: 999px;
       background: var(--surface);
       color: var(--muted);
-      font: 12px var(--mono);
+      font: 700 11px var(--mono);
       text-transform: uppercase;
     }
 
@@ -162,24 +184,31 @@
     .status-pill.blocked {
       border-color: rgba(163, 58, 47, 0.35);
       color: var(--danger);
-      background: #fff0ed;
+      background: var(--danger-soft);
     }
 
     label {
       display: block;
       margin: 12px 0 6px;
-      color: var(--muted);
-      font-size: 13px;
+      color: var(--ink-2);
+      font: 700 12px var(--sans);
     }
 
     input {
       width: 100%;
       min-height: 42px;
       border: 1px solid var(--line);
-      background: white;
+      border-radius: var(--radius);
+      background: var(--surface);
       color: var(--ink);
       padding: 9px 10px;
       font-size: 15px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--leaf-2);
+      box-shadow: 0 0 0 3px oklch(0.56 0.15 149 / 0.16);
     }
 
     .field-row {
@@ -193,13 +222,13 @@
       display: grid;
       gap: 10px;
       min-height: 244px;
-      border: 1px dashed rgba(37, 111, 75, 0.48);
-      background:
-        linear-gradient(135deg, rgba(215, 237, 242, 0.58), rgba(255, 255, 255, 0.84)),
-        var(--surface);
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
       padding: 12px;
       cursor: pointer;
       overflow: hidden;
+      transition: border-color 160ms var(--ease), background 160ms var(--ease);
     }
 
     .dropzone.active {
@@ -217,16 +246,17 @@
     .preview-frame {
       display: grid;
       place-items: center;
-      min-height: 174px;
-      border: 1px solid rgba(99, 112, 104, 0.18);
-      background: rgba(255, 255, 255, 0.64);
+      min-height: 246px;
+      border: 1px solid var(--line);
+      border-radius: calc(var(--radius) - 2px);
+      background: oklch(0.18 0.021 144);
       overflow: hidden;
     }
 
     .preview-frame img {
       width: 100%;
-      height: 210px;
-      object-fit: cover;
+      height: 280px;
+      object-fit: contain;
       display: none;
     }
 
@@ -284,8 +314,9 @@
     }
 
     .step {
-      min-height: 72px;
+      min-height: 76px;
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--surface);
       padding: 10px;
       display: grid;
@@ -305,7 +336,7 @@
 
     .step.active {
       border-color: var(--marigold);
-      background: #fff7e6;
+      background: oklch(0.968 0.045 76);
     }
 
     .step.done {
@@ -315,7 +346,7 @@
 
     .step.error {
       border-color: rgba(163, 58, 47, 0.38);
-      background: #fff0ed;
+      background: var(--danger-soft);
     }
 
     .readiness {
@@ -323,6 +354,7 @@
       gap: 10px;
       padding: 12px;
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--surface);
     }
 
@@ -352,6 +384,7 @@
 
     .metric {
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--surface);
       padding: 10px;
       min-height: 76px;
@@ -375,6 +408,7 @@
     .message {
       min-height: 44px;
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--faint);
       padding: 10px;
       color: var(--ink);
@@ -382,7 +416,7 @@
     }
 
     .message.error {
-      background: #fff0ed;
+      background: var(--danger-soft);
       border-color: rgba(163, 58, 47, 0.35);
       color: var(--danger);
     }
@@ -390,6 +424,7 @@
     .result-card {
       min-height: 148px;
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--surface);
       padding: 14px;
     }
@@ -424,6 +459,7 @@
       min-height: 34px;
       padding: 7px 10px;
       border: 1px solid var(--line);
+      border-radius: var(--radius) var(--radius) 0 0;
       background: var(--surface);
       color: var(--muted);
       cursor: pointer;
@@ -439,6 +475,7 @@
       display: none;
       border: 1px solid var(--line);
       border-top: 0;
+      border-radius: 0 0 var(--radius) var(--radius);
       background: var(--surface);
       padding: 14px;
       min-height: 280px;
@@ -456,9 +493,10 @@
     }
 
     .summary-item {
-      border-left: 3px solid var(--leaf);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--faint);
-      padding: 9px 10px;
+      padding: 10px 12px;
     }
 
     .summary-item b {
@@ -472,7 +510,8 @@
       overflow-wrap: anywhere;
       font: 12px/1.45 var(--mono);
       color: #edf6e8;
-      background: #122019;
+      background: oklch(0.18 0.021 144);
+      border-radius: var(--radius);
       padding: 12px;
       min-height: 240px;
     }
@@ -480,8 +519,8 @@
     .atlas {
       display: grid;
       grid-template-columns: minmax(280px, 0.72fr) minmax(320px, 1fr) minmax(320px, 1fr);
-      gap: 14px;
-      margin-top: 14px;
+      gap: 16px;
+      margin-top: 16px;
     }
 
     .species-list,
@@ -495,6 +534,7 @@
 
     .row-card {
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--surface);
       padding: 10px;
     }
@@ -516,7 +556,8 @@
     .empty {
       padding: 16px;
       border: 1px dashed var(--line);
-      background: rgba(255, 255, 255, 0.64);
+      border-radius: var(--radius);
+      background: var(--surface-2);
       color: var(--muted);
     }
 
@@ -786,9 +827,21 @@
     }
 
     async function parseJSONResponse(response) {
-      const body = await response.json();
+      let body;
+      try {
+        body = await response.json();
+      } catch {
+        body = { detail: { message: `Request failed with HTTP ${response.status}.` } };
+      }
       if (!response.ok) {
-        throw new Error(JSON.stringify(body, null, 2));
+        const detail = body.detail || body;
+        const message = typeof detail === "string"
+          ? detail
+          : detail.message || detail.error || `Request failed with HTTP ${response.status}.`;
+        const error = new Error(message);
+        error.status = response.status;
+        error.payload = body;
+        throw error;
       }
       return body;
     }
@@ -912,6 +965,7 @@
       const image = body.image || {};
       el.resultStatus.textContent = "Complete";
       el.resultStatus.classList.add("ready");
+      el.resultStatus.classList.remove("blocked");
       el.resultCard.innerHTML = `
         <h3>${escapeHTML(plant.scientific_name)}</h3>
         <p><b>Family:</b> ${escapeHTML(plant.family)}<br>
@@ -927,6 +981,34 @@
       renderSummary(report);
       renderResearch(report);
       el.jsonPanel.innerHTML = `<pre>${escapeHTML(JSON.stringify(body, null, 2))}</pre>`;
+    }
+
+    function renderError(error) {
+      const payload = error.payload || {};
+      const detail = payload.detail || {};
+      const plant = detail.plant_id || {};
+      const candidateName = plant.scientific_name || "No reliable candidate";
+      const confidence = plant.confidence !== undefined && plant.confidence !== null ? plant.confidence : "not available";
+      const modelNote = plant.error ? "The model response was incomplete. The backend now recovers usable plant fields when possible." : "Capture a closer view of leaves, flowers, fruit, or bark and try again.";
+
+      el.resultStatus.textContent = "Review";
+      el.resultStatus.classList.remove("ready");
+      el.resultStatus.classList.add("blocked");
+      el.resultCard.innerHTML = `
+        <h3>${escapeHTML(candidateName)}</h3>
+        <p><b>Status:</b> ${escapeHTML(error.message)}<br>
+        <b>Confidence:</b> ${escapeHTML(confidence)}<br>
+        <b>Next:</b> ${escapeHTML(modelNote)}</p>
+      `;
+      el.summaryPanel.innerHTML = `
+        <div class="summary-list">
+          <div class="summary-item"><b>Capture</b>Use a crop where the specimen fills the frame. Gallery screenshots with metadata can work, but the original plant photo is better.</div>
+          <div class="summary-item"><b>Candidate</b>${escapeHTML(candidateName)}${plant.family ? `, ${escapeHTML(plant.family)}` : ""}</div>
+          <div class="summary-item"><b>Evidence</b>${escapeHTML(plant.identification_basis || plant.error || "No model evidence returned.")}</div>
+        </div>
+      `;
+      el.researchPanel.innerHTML = `<div class="empty">Research did not run because identification needs review.</div>`;
+      el.jsonPanel.innerHTML = `<pre>${escapeHTML(JSON.stringify(payload, null, 2))}</pre>`;
     }
 
     function renderSummary(report) {
@@ -1004,6 +1086,7 @@
       el.runButton.disabled = true;
       el.resultStatus.textContent = "Running";
       el.resultStatus.classList.remove("ready");
+      el.resultStatus.classList.remove("blocked");
       setMessage("Pipeline running.");
       stagePendingProgress();
 
@@ -1017,9 +1100,9 @@
         await loadDashboard();
       } catch (error) {
         clearTimers();
-        setSteps(null, [], "research");
+        setSteps(null, [], error.status === 422 ? "identify" : "research");
+        renderError(error);
         setMessage(error.message, true);
-        el.resultStatus.textContent = "Error";
       } finally {
         el.runButton.disabled = false;
       }
