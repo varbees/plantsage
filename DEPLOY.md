@@ -99,7 +99,7 @@ Expected live runtime is usually 45-90 seconds because Claude web search runs se
 
 ## Deploy to Vercel with pnpm dlx
 
-Vercel uses `api/main.py` as the FastAPI function entrypoint. `vercel.json` rewrites all paths to that function and sets a 300 second max duration for the prototype.
+Vercel uses the root `app.py` FastAPI entrypoint, which re-exports the real application from `api.main`. This follows Vercel's FastAPI detector while keeping local runs on `python -m uvicorn api.main:app`.
 
 Login/link:
 

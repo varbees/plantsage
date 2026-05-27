@@ -23,14 +23,17 @@ def test_dockerignore_excludes_runtime_artifacts():
     assert "data/uploads/" in text
 
 
-def test_vercel_config_exists_for_python_function():
+def test_vercel_entrypoint_matches_fastapi_detector():
     config = Path("vercel.json")
     assert config.exists()
+    assert Path("app.py").exists()
 
-    text = config.read_text(encoding="utf-8")
-    assert '"api/main.py"' in text
-    assert '"maxDuration": 300' in text
-    assert '"destination": "/api/main.py"' in text
+    entrypoint = Path("app.py").read_text(encoding="utf-8")
+    assert "from api.main import app" in entrypoint
+
+    config_text = config.read_text(encoding="utf-8")
+    assert '"api/main.py"' not in config_text
+    assert '"destination": "/api/main.py"' not in config_text
 
 
 def test_gitignore_keeps_examples_and_excludes_secrets():

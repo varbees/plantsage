@@ -95,7 +95,7 @@ The original `files(1)/` drop is left untouched. The canonical runnable app is t
 
 ## Vercel prototype
 
-This repo includes `vercel.json`, `.python-version`, and `pyproject.toml` so Vercel can deploy `api/main.py` as a Python FastAPI function.
+This repo includes `app.py`, `.python-version`, and `pyproject.toml` so Vercel can detect the FastAPI app while local development continues to use `api.main:app`.
 
 Deploy from the CLI:
 
